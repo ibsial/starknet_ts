@@ -1,0 +1,10 @@
+
+
+built
+node_modules
+*.csv
+*.txt
+config.ts
+build
+!okx_addresses_example.txt
+!privates_example.txt
