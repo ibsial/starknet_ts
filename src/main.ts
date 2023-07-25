@@ -129,7 +129,7 @@ async function volumeCircle(walletTripples: any[]) {
                     fromToken,
                     toToken,
                     amountIn,
-                    RandomHelpers.getRandomBnFromTo(10n, 30n) // slippage from 1% to 3%
+                    RandomHelpers.getRandomBnFromTo(8n, 12n) // slippage from 1% to 3%
                 )
             } else if (ammName == 'avnu') {
                 swapResp = await retry(wallet.swapAvnu.bind(wallet), {}, fromToken, toToken, amountIn)

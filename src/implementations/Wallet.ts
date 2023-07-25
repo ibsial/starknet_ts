@@ -455,7 +455,7 @@ class StarknetWallet {
             let req: any = await axios.post('https://starknet.api.avnu.fi/swap/v1/build', {
                 quoteId: reqId,
                 takerAddress: this.starknetAddress,
-                slippage: 0.1
+                slippage: 0.5
             })
             call = {
                 contractAddress: req.data.contractAddress,
