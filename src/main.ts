@@ -11,7 +11,7 @@ import {
     NumbersHelpers,
     getTxStatus
 } from './implementations/helpers'
-import { getTripples, importOkxAddresses } from './fs_manipulations'
+import { assembleAndRandomizeData } from './fs_manipulations'
 import { action_sleep_interval, circle_config, eth_bridge, okx_config, wallet_sleep_interval } from '../config'
 import { Contract } from 'starknet'
 import { ActionResult, ReadResponse, AccData } from './interfaces/Types'
@@ -21,19 +21,27 @@ async function volumeCircle(walletTripples: any[]) {
     for (let [index, walletTripple] of walletTripples.entries()) {
         let exch = new Okex()
         let wallet = new progressTracker(walletTripple[0], walletTripple[1], walletTripple[2])
-         // withdraw from OKX
+        wallet.updateProgress(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress}`)
+        // withdraw from OKX
         await checkGas()
         if (okx_config.need_withdraw) {
             try {
             let randAmountFrom = NumbersHelpers.floatStringToBigInt(okx_config.amount_from, 18n)
             let randAmountTo = NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)
             let randAmount = RandomHelpers.getRandomBnFromTo(randAmountFrom, randAmountTo)
-            await exch.withdrawEth(randAmount, undefined, walletTripple[1])
+            let toPrivate;
+            if (walletTripple[1] == undefined) {
+                toPrivate = wallet.ethSigner.privateKey
+            } else {
+                toPrivate = walletTripple[1]
+            }
+            await exch.withdrawEth(randAmount, undefined, toPrivate)
             await sleep(3 * 60, 'withdraw from okx')
             }catch (e) {
                 log(e)
                 log('something prevented from withdrawing, check everything and start again, please')
                 wallet.updateProgress('*something prevented from withdrawing, check everything and start again, please*')
+                await wallet.sendProgress()
                 await sleep(timeout*3, 'okx withdraw fail')
                 break
             }
@@ -42,7 +50,7 @@ async function volumeCircle(walletTripples: any[]) {
         if (eth_bridge.need_bridge) {
             let bridgeRes = await wallet.bridgeMainnet()
             wallet.updateProgress(bridgeRes.transactionHash)
-            await sleep(3 * 60, 'Bridge to starknet')
+            await sleep(5 * 60, 'Bridged to starknet')
         }
         await checkGas()
         // deploy
@@ -50,6 +58,7 @@ async function volumeCircle(walletTripples: any[]) {
         if (!deployRes.success) {
             log(c.red('failed to deploy account, need to add retry here'))
             wallet.updateProgress(deployRes.transactionHash + '\n*Restart script*')
+            await wallet.sendProgress()
             await sleep(timeout * 3, "fail on deploy")
             return
         }
@@ -64,6 +73,7 @@ async function volumeCircle(walletTripples: any[]) {
         let fromTokenName: string = 'ETH'
         // fromToken = starkTokens['ETH']
         for (let i = 0; i < circleAmount; i++) {
+            wallet.updateProgress(`circle: [ ${i+1} / ${circleAmount} ]`)
             let fromToken = starkTokens.ETH
             // choose dex: [jedi, 10k, avnu, myswap?]
             let ammName = RandomHelpers.chooseElementFromArray(circle_config.dex)
@@ -79,8 +89,8 @@ async function volumeCircle(walletTripples: any[]) {
             let toTokenName = RandomHelpers.chooseElementFromArray(circle_config.tokens)
             let toToken = starkTokens[toTokenName as keyof typeof starkTokens]
             if (circle_config.tokens.length == 0) {
-                log(c.red(`collision found`, c.bold(`can't cave 0 token in cfg`)))
-                wallet.updateProgress(`❌❌❌ *you cant have 0 token in config! Restart the script*`)
+                log(c.red(`collision found`, c.bold(`can't cave 0 tokens in cfg`)))
+                wallet.updateProgress(`❌❌❌ *you cant have 0 tokens in config! Restart the script*`)
                 await wallet.sendProgress()
                 await sleep(timeout * 2)
                 return
@@ -91,11 +101,11 @@ async function volumeCircle(walletTripples: any[]) {
             let resp = await wallet.getBalance(starkTokens[fromTokenName as keyof typeof starkTokens])
             if (resp.success) {
                 if (fromTokenName == 'ETH') {
-                    amountIn = (resp.result * RandomHelpers.getRandomBnFromTo(20n, 45n)) / 100n
+                    amountIn = (resp.result * RandomHelpers.getRandomBnFromTo(circle_config.swap_percent[0], circle_config.swap_percent[1])) / 100n
                     amountIn = amountIn
                 }
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 await sleep(timeout, `something wrong with rpc`)
                 i--
                 continue
@@ -114,7 +124,7 @@ async function volumeCircle(walletTripples: any[]) {
             if (estimateResp.success) {
                 amountOut = estimateResp.result
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 await sleep(timeout, `something wrong with rpc`)
                 continue
             }
@@ -151,7 +161,7 @@ async function volumeCircle(walletTripples: any[]) {
             if (resp.success) {
                 amountOut = resp.result
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 await sleep(timeout, `something wrong with rpc`)
                 continue
             }
@@ -169,7 +179,7 @@ async function volumeCircle(walletTripples: any[]) {
             if (estimateResp.success) {
                 amountIn = estimateResp.result
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 await sleep(timeout, `something wrong with rpc`)
                 continue
             }
@@ -180,7 +190,7 @@ async function volumeCircle(walletTripples: any[]) {
                 wallet.updateProgress(addLpResp!.transactionHash)
                 await sleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 wallet.updateProgress(addLpResp!.transactionHash)
                 await sleep(timeout, `something wrong with rpc`)
                 continue
@@ -191,7 +201,7 @@ async function volumeCircle(walletTripples: any[]) {
             let lpToken = wallet.getLpTokenByComponents(amm, starkTokens.ETH, toToken)
             if (lpToken == undefined) {
                 log(c.red(`selected not existing token pair: ${fromToken.name}|${toToken.name}`))
-                log(`[ ${index} ] ${wallet.starknetAddress}`)
+                log(`[ ${index+1} ] ${wallet.starknetAddress}`)
                 log(c.magenta(`tell about this to the author`))
                 await sleep(timeout, `Bug encountered :(`)
                 continue
@@ -201,11 +211,11 @@ async function volumeCircle(walletTripples: any[]) {
             // переделать?
             removeLpResp = await retry(wallet.removeLp.bind(wallet), {}, amm, lpToken, lpTokenAmount.result)
             if (removeLpResp.success) {
-                log(removeLpResp)
+                // log(removeLpResp)
                 wallet.updateProgress(removeLpResp!.transactionHash)
                 await sleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 wallet.updateProgress(removeLpResp!.transactionHash)
                 await sleep(timeout, `something wrong with rpc`)
                 continue
@@ -217,7 +227,7 @@ async function volumeCircle(walletTripples: any[]) {
             if (lastResp.success) {
                 tokenAmountIn = lastResp.result
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 wallet.updateProgress(lastResp!.result)
                 await sleep(timeout, `something wrong with rpc`)
                 continue
@@ -242,7 +252,7 @@ async function volumeCircle(walletTripples: any[]) {
                 wallet.updateProgress(lastSwapResp!.transactionHash)
                 await sleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
             } else {
-                log(c.red(`[ ${index} ] ${wallet.starknetAddress}`))
+                log(c.red(`[ ${index+1} ] ${wallet.starknetAddress}`))
                 wallet.updateProgress(lastSwapResp!.transactionHash)
                 await sleep(timeout, `something wrong with rpc`)
                 continue
@@ -251,51 +261,56 @@ async function volumeCircle(walletTripples: any[]) {
         // transfer to OKX
         if (okx_config.need_withdraw) {
             let finalEthBalance = await wallet.getBalance(starkTokens.ETH)
-            let amountToLeaveFrom =
-                finalEthBalance.result - NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_from, 18n)
-            let amountToLeaveTo =
-                finalEthBalance.result - NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_to, 18n)
+            let amountToLeaveFrom = NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_from, 18n)
+            let amountToLeaveTo = NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_to, 18n)
             let amountToTransfer =
                 finalEthBalance.result - RandomHelpers.getRandomBnFromTo(amountToLeaveFrom, amountToLeaveTo)
-            let sendRes = await wallet.transfer(starkTokens.ETH, okxWallets[index % okxWallets.length], amountToTransfer)
-            log(sendRes.transactionHash)
+            if (amountToTransfer <= 0n) {
+                log(c.yellow('amount to transfer to OKX <= 0, is that OK?'))
+                wallet.updateProgress('amount to transfer to OKX <= 0, is that OK? \n*Check the script, please*')
+                await wallet.sendProgress()
+                await sleep(timeout * 3)
+                continue
+            }
+            let sendRes = await wallet.transfer(starkTokens.ETH, walletTripple[3], amountToTransfer)
             wallet.updateProgress(sendRes.transactionHash)
+            await wallet.sendProgress()
             let nonZeroAccs: AccData[] = []
             let oldBalance = await exch.getMainBalance()
             while (nonZeroAccs.length == 0) {
-                try {
-                if (oldBalance < (await exch.getMainBalance())) {
-                    log('deposited to main account successfully!')
+                // если не хотим ждать и достаточно денег, идём дальше
+                if (!circle_config.wait_okx_balance && oldBalance > NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)) {
+                    log(c.yellow(`OKX balance is sufficient not to wait for deposit, continuing..`))
                     break
                 }
-                nonZeroAccs = await exch.getNonZeroSubacc()
-                await sleep(15, 'wait okx balance')
-            } catch (e) {
-                log(e)
-            }
+                try {
+                    if (oldBalance > NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)) {
+                        log(`OKX balance: ${NumbersHelpers.bigIntToFloatStr(oldBalance, 18n)}, enough to go further`)
+                        break
+                    }
+                    let currentBalance = await exch.getMainBalance()
+                    if (oldBalance < currentBalance) {
+                        log('deposited to main account successfully!')
+                        break
+                    }
+                    nonZeroAccs = await exch.getNonZeroSubacc()
+                    await sleep(15, 'wait okx balance')
+                } catch (e) {
+                    log(e)
+                }
             }
             if (nonZeroAccs.length > 0) {
                 exch.transferToMain('ETH', nonZeroAccs)
             }
         }
-        await wallet.sendProgress()
         let sleepTime = RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[0])
-        if (sleepTime < 10 * 60) {
-            sleepTime = 10 * 60 + RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[0])
-        }
-        await sleep(
-            sleepTime,
-            'sleep between acc'
-        )
+        await sleep(sleepTime, 'sleep between acc')
     }
 }
 
-let walletTripples: any
-let okxWallets: any
-
 async function main() {
-    walletTripples = await getTripples()
-    okxWallets = await importOkxAddresses()
-    await volumeCircle(walletTripples)
+    let wallets = await assembleAndRandomizeData()
+    if (!wallets) return
+    await volumeCircle(wallets)
 }
 main()

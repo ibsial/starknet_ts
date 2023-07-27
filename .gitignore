@@ -8,3 +8,5 @@ config.ts
 build
 !okx_addresses_example.txt
 !privates_example.txt
+!eth_privates_example.txt
+!seeds_example.txt

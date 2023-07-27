@@ -9,7 +9,7 @@ import { amms, starkTokens } from '../data/tokens'
 
 class progressTracker extends StarknetWallet {
     // telegram results paste
-    telegramPaste: string = `${getChecksumAddress(this.starknetAddress)}\n`
+    telegramPaste: string = ``
 
     constructor(mnemonic: string, evmPrivateKey?: string, index?: string) {
         super(mnemonic, evmPrivateKey, index)

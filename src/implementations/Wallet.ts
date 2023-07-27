@@ -130,7 +130,7 @@ class StarknetWallet {
             return {
                 success: true,
                 statusCode: 1,
-                transactionHash: `✔️ sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${
+                transactionHash: `✅ sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${
                     this.starknetAddress
                 }`
             }
@@ -197,7 +197,7 @@ class StarknetWallet {
         try {
             const tx = await this.starknetAccount.deployAccount(deployAccountPayload)
             log(tx)
-            return { success: true, statusCode: 1, transactionHash: `✔️ deployed ${this.starknetAddress}` }
+            return { success: true, statusCode: 1, transactionHash: `✅ deployed ${this.starknetAddress}` }
         } catch (e: any) {
             log(e)
             return { success: false, statusCode: 0, transactionHash: `❌ failed to deploy ${this.starknetAddress}`  }
@@ -209,7 +209,7 @@ class StarknetWallet {
         let multicall
         try {
         multicall = await this.starknetAccount.execute([transferCallData])
-        let pasta = `✔️ transferred ${NumbersHelpers.bigIntToFloatStr(amount, token.decimals)} ${token.name} from ${this.starknetAccount} to OKX: ${to}`
+        let pasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(amount, token.decimals)} ${token.name} from ${this.starknetAddress} to OKX: ${to}`
         log(pasta)
         log(`[ ${this.starknetAddress} ]`)
         log(c.green(starknet.explorer.tx + multicall.transaction_hash))
@@ -231,6 +231,7 @@ class StarknetWallet {
         try {
             let tokenContract: Contract = new Contract(erc20_abi, token.address, this.starkProvider)
             balance = (await retry(tokenContract.balanceOf, {}, this.starknetAddress)).balance.low
+            log(this.starknetAddress)
             return { success: true, statusCode: 1, result: balance }
         } catch (e) {
             console.log(e)
@@ -306,7 +307,7 @@ class StarknetWallet {
                 RandomHelpers.getRandomDeadline()
             ])
             const multicall = await this.starknetAccount.execute([approveCallData, swapCallData])
-            let pasta = `✔️ swapped ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
+            let pasta = `✅ swapped ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
                 tokenIn.name
             } for ${NumbersHelpers.bigIntToFloatStr(amountOut.result, tokenOut.decimals)} ${tokenOut.name}`
 
@@ -351,7 +352,7 @@ class StarknetWallet {
                 RandomHelpers.getRandomDeadline()
             ])
             const multicall = await this.starknetAccount.execute([approveCallDataA, approveCallDataB, addLpCallData])
-            let pasta = `✔️ added LP ${NumbersHelpers.bigIntToFloatStr(amountA, tokenA.decimals)} ${
+            let pasta = `✅ added LP ${NumbersHelpers.bigIntToFloatStr(amountA, tokenA.decimals)} ${
                 tokenA.name
             } | ${NumbersHelpers.bigIntToFloatStr(amountB, tokenB.decimals)} ${tokenB.name} to ${amm.name}`
 
@@ -409,7 +410,7 @@ class StarknetWallet {
             ])
             multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
          }
-            let pasta = `✔️ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToFloatStr(
+            let pasta = `✅ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToFloatStr(
                 amounts.result[0],
                 lpToken.components.tokenA.decimals
             )} ${lpToken.components.tokenA.name} and ${NumbersHelpers.bigIntToFloatStr(
@@ -470,7 +471,7 @@ class StarknetWallet {
         const approveCallData: Call = token.populate('approve', [call.contractAddress, uint256.bnToUint256(amountIn)])
         try {
             const multicall: any = await this.starknetAccount.execute([approveCallData, call])
-            let pasta = `✔️ swapped on AVNU ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
+            let pasta = `✅ swapped on AVNU ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
                 tokenIn.name
             } for ${NumbersHelpers.bigIntToFloatStr(BigInt(buyAmount), tokenOut.decimals)} ${tokenOut.name}`
             log(pasta)
