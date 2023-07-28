@@ -111,7 +111,7 @@ export const assembleAndRandomizeData = async () => {
     while (doubles.length > ethPrivates) {
         ethPrivates.push(undefined)
     }
-    for (let i = 0, i < doubles.length, i++) {
+    for (let i = 0; i < doubles.length; i++) {
         let temp = []
         temp.push(doubles[i][0], ethPrivates[i], doubles[i][1], okxAddresses[i % okxAddresses.length])
         finalArray.push(temp)
