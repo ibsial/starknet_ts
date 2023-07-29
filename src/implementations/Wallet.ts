@@ -1,6 +1,6 @@
 import { ethereum, starknet } from '../data/networks'
 import { starknet_bridge_abi } from '../abi/starknet_bridge'
-import { eth_bridge, good_gwei } from '../../config'
+import { eth_bridge, good_gwei, action_sleep_interval } from '../../config'
 import { RandomHelpers, NumbersHelpers, sleep, log, c, retry, getTxStatus, gweiEthProvider } from './helpers'
 import { erc20_abi } from '../abi/erc20'
 import { ActionResult, Token, Amm, ReadResponse, LpToken } from '../interfaces/Types'
@@ -16,7 +16,8 @@ import {
     Contract,
     Call,
     getChecksumAddress,
-    provider
+    provider,
+    EstimateFee
 } from 'starknet'
 import axios from 'axios'
 
@@ -168,11 +169,14 @@ class StarknetWallet {
     /**
      * not retried checkAndDeployWallet
      * взято с https://www.starknetjs.com/docs/guides/create_account
-     * @returns 
+     * @returns
      */
-    
+
     async checkAndDeployWallet(): Promise<ActionResult> {
-        let deployed: ReadResponse = await retry(this.isAccountDeployed.bind(this), { maxRetries: 10, retryInterval: 5 })
+        let deployed: ReadResponse = await retry(this.isAccountDeployed.bind(this), {
+            maxRetries: 10,
+            retryInterval: 5
+        })
         if (deployed.success && deployed.result) {
             return { success: true, statusCode: 1, transactionHash: `${this.starknetAddress} already deployed` }
         }
@@ -200,7 +204,7 @@ class StarknetWallet {
             return { success: true, statusCode: 1, transactionHash: `✅ deployed ${this.starknetAddress}` }
         } catch (e: any) {
             log(e)
-            return { success: false, statusCode: 0, transactionHash: `❌ failed to deploy ${this.starknetAddress}`  }
+            return { success: false, statusCode: 0, transactionHash: `❌ failed to deploy ${this.starknetAddress}` }
         }
     }
     async transfer(token: Token, to: string, amount: bigint): Promise<ActionResult> {
@@ -208,18 +212,69 @@ class StarknetWallet {
         let transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256(amount)])
         let multicall
         try {
-        multicall = await this.starknetAccount.execute([transferCallData])
-        let pasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(amount, token.decimals)} ${token.name} from ${this.starknetAddress} to OKX: ${to}`
-        log(pasta)
-        log(`[ ${this.starknetAddress} ]`)
-        log(c.green(starknet.explorer.tx + multicall.transaction_hash))
-        return await this.retryGetTxStatus(multicall.transaction_hash, pasta)
-        }catch (e: any) {
+            multicall = await this.starknetAccount.execute([transferCallData])
+            let pasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(amount, token.decimals)} ${token.name} from ${
+                this.starknetAddress
+            } to OKX: ${to}`
+            log(pasta)
+            log(`[ ${this.starknetAddress} ]`)
+            log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+            return await this.retryGetTxStatus(multicall.transaction_hash, pasta)
+        } catch (e: any) {
             let msg: any = e.message?.split('Error in the called contract')
             log(c.red(`error on transfer`), msg[msg.length - 1])
             log(c.red(`[ ${this.starknetAddress} ]`))
             return { success: false, statusCode: 0, transactionHash: `❌failed to transfer to OKX` }
         }
+    }
+    /**
+     * Не забудь вычесть комиссию
+     * @param token 
+     * @param to 
+     * @param count 
+     * @param amount 
+     * @returns 
+     */
+    async splitTransfer(token: Token, to: string, count: bigint, amount: bigint): Promise<ActionResult[]> {
+        // randomize parts
+        let sum: bigint = 0n
+        let parts: bigint[] = []
+        for (let i = 0; i < count; i++) {
+            let val = RandomHelpers.getRandomBnFromTo(30n, 100n)
+            parts.push(val)
+            sum += val
+        }
+        let results: ActionResult[] = []
+        let tokenContract = new Contract(token.abi, token.address, this.starkProvider)
+        let multicall
+        for (let i = 0; i < parts.length; i++) {
+            try {
+                // estimate send fee
+                let transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256(amount * parts[i] / sum)])
+                let avgFee: EstimateFee = await this.starknetAccount.estimateInvokeFee(transferCallData)
+                // substract send fee
+                transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n))])
+                multicall = await this.starknetAccount.execute([transferCallData])
+                let pasta = `[${NumbersHelpers.bigIntToFloatStr(parts[i] * 100n / sum, 0n)}%]\n✅ transferred ${NumbersHelpers.bigIntToFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
+                    token.name
+                } from ${this.starknetAddress} to OKX: ${to}`
+                log(pasta)
+                log(`[ ${this.starknetAddress} ]`)
+                let telegramPasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
+                    token.name
+                } to OKX`
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                results.push(await this.retryGetTxStatus(multicall.transaction_hash, telegramPasta))
+            } catch (e: any) {
+                log(e)
+                let msg: any = e.message?.split('Error in the called contract')
+                log(c.red(`error on transfer`), msg[msg.length - 1])
+                log(c.red(`[ ${this.starknetAddress} ]`))
+                results.push({ success: false, statusCode: 0, transactionHash: `❌failed to transfer to OKX` })
+            }
+            await sleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
+        }
+        return results
     }
     /**
      * retriable getBalance
@@ -240,12 +295,12 @@ class StarknetWallet {
     }
     /**
      * not retried getAmountsOut
-     * @param dex 
-     * @param amm 
-     * @param tokenIn 
-     * @param tokenOut 
-     * @param amountIn 
-     * @returns 
+     * @param dex
+     * @param amm
+     * @param tokenIn
+     * @param tokenOut
+     * @param amountIn
+     * @returns
      */
     async getAmountsOut(
         dex: Contract,
@@ -268,12 +323,12 @@ class StarknetWallet {
     }
     /**
      * not retried swapDex
-     * @param amm 
-     * @param tokenIn 
-     * @param tokenOut 
-     * @param amountIn 
-     * @param slippage 
-     * @returns 
+     * @param amm
+     * @param tokenIn
+     * @param tokenOut
+     * @param amountIn
+     * @param slippage
+     * @returns
      */
     async swapDex(
         amm: Amm,
@@ -324,12 +379,12 @@ class StarknetWallet {
     }
     /**
      * not retried addLp
-     * @param amm 
-     * @param tokenA 
-     * @param tokenB 
-     * @param amountA 
-     * @param amountB 
-     * @returns 
+     * @param amm
+     * @param tokenA
+     * @param tokenB
+     * @param amountA
+     * @param amountB
+     * @returns
      */
     async addLp(amm: Amm, tokenA: Token, tokenB: Token, amountA: bigint, amountB: bigint): Promise<ActionResult> {
         try {
@@ -368,14 +423,14 @@ class StarknetWallet {
         }
     }
     getLpTokenByComponents(amm: Amm, tokenA: Token, tokenB: Token): LpToken {
-        return amm.lpTokens[tokenA.name+tokenB.name as keyof typeof amm.lpTokens]
+        return amm.lpTokens[(tokenA.name + tokenB.name) as keyof typeof amm.lpTokens]
     }
     /**
      * not retried removeLp
-     * @param amm 
-     * @param lpToken 
-     * @param amount 
-     * @returns 
+     * @param amm
+     * @param lpToken
+     * @param amount
+     * @returns
      */
     async removeLp(amm: Amm, lpToken: LpToken, amount: bigint): Promise<ActionResult> {
         let multicall
@@ -383,33 +438,33 @@ class StarknetWallet {
             const dex = new Contract(amm.abi, amm.address, this.starkProvider)
             const token = new Contract(lpToken.token.abi, lpToken.token.address, this.starkProvider)
             // get tokenA and tokenB amounts to remove
-            let amounts: ReadResponse = await retry(this.getRemoveLpAmounts.bind(this), {} ,token, lpToken, amount)
+            let amounts: ReadResponse = await retry(this.getRemoveLpAmounts.bind(this), {}, token, lpToken, amount)
             // build and send tx
             const approveCallData: Call = token.populate('approve', [amm.address, uint256.bnToUint256(amount)])
             try {
-            const removeLpCallData: Call = dex.populate(amm.entryPoints['removeLiquidity'].name, [
-                lpToken.components.tokenA.address,
-                lpToken.components.tokenB.address,
-                uint256.bnToUint256(amount), // LP amount
-                uint256.bnToUint256(amounts.result[0]), // amountA slippage
-                uint256.bnToUint256(amounts.result[1]), // amountB slippage
-                this.starknetAddress, // to
-                RandomHelpers.getRandomDeadline()
-            ])
-            multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
-            // flip tokenA and tokenB
-         } catch(e) {
-            const removeLpCallData: Call = dex.populate(amm.entryPoints['removeLiquidity'].name, [
-                lpToken.components.tokenB.address,
-                lpToken.components.tokenA.address,
-                uint256.bnToUint256(amount), // LP amount
-                uint256.bnToUint256(amounts.result[0]), // amountA slippage
-                uint256.bnToUint256(amounts.result[1]), // amountB slippage
-                this.starknetAddress, // to
-                RandomHelpers.getRandomDeadline()
-            ])
-            multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
-         }
+                const removeLpCallData: Call = dex.populate(amm.entryPoints['removeLiquidity'].name, [
+                    lpToken.components.tokenA.address,
+                    lpToken.components.tokenB.address,
+                    uint256.bnToUint256(amount), // LP amount
+                    uint256.bnToUint256(amounts.result[0]), // amountA slippage
+                    uint256.bnToUint256(amounts.result[1]), // amountB slippage
+                    this.starknetAddress, // to
+                    RandomHelpers.getRandomDeadline()
+                ])
+                multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
+                // flip tokenA and tokenB
+            } catch (e) {
+                const removeLpCallData: Call = dex.populate(amm.entryPoints['removeLiquidity'].name, [
+                    lpToken.components.tokenB.address,
+                    lpToken.components.tokenA.address,
+                    uint256.bnToUint256(amount), // LP amount
+                    uint256.bnToUint256(amounts.result[0]), // amountA slippage
+                    uint256.bnToUint256(amounts.result[1]), // amountB slippage
+                    this.starknetAddress, // to
+                    RandomHelpers.getRandomDeadline()
+                ])
+                multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
+            }
             let pasta = `✅ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToFloatStr(
                 amounts.result[0],
                 lpToken.components.tokenA.decimals
@@ -432,10 +487,10 @@ class StarknetWallet {
     }
     /**
      * not retried swapAvnu
-     * @param tokenIn 
-     * @param tokenOut 
-     * @param amountIn 
-     * @returns 
+     * @param tokenIn
+     * @param tokenOut
+     * @param amountIn
+     * @returns
      */
     async swapAvnu(tokenIn: Token, tokenOut: Token, amountIn: bigint): Promise<ActionResult> {
         let amountInHex: string = '0x' + amountIn.toString(16)
@@ -485,19 +540,19 @@ class StarknetWallet {
     }
     /**
      * retried getTxStatus
-     * @param hash 
-     * @param pasta 
-     * @returns 
+     * @param hash
+     * @param pasta
+     * @returns
      */
     async retryGetTxStatus(hash: string, pasta: string): Promise<ActionResult> {
-            return await retry(getTxStatus, {maxRetries: 10}, this.starkProvider, hash, pasta)
-        }
+        return await retry(getTxStatus, { maxRetries: 10 }, this.starkProvider, hash, pasta)
+    }
     /**
      * not retried getRemoveLpAmounts
-     * @param token 
-     * @param lpToken 
-     * @param amount 
-     * @returns 
+     * @param token
+     * @param lpToken
+     * @param amount
+     * @returns
      */
     private async getRemoveLpAmounts(token: Contract, lpToken: LpToken, amount: bigint): Promise<ReadResponse> {
         let totalSupply: any
@@ -555,6 +610,6 @@ async function checkGas() {
             log(e)
         }
     }
-  }
+}
 
 export { StarknetWallet, checkGas }

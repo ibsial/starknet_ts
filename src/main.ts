@@ -272,8 +272,11 @@ async function volumeCircle(walletTripples: any[]) {
                 await sleep(timeout * 3)
                 continue
             }
-            let sendRes = await wallet.transfer(starkTokens.ETH, walletTripple[3], amountToTransfer)
-            wallet.updateProgress(sendRes.transactionHash)
+            let transferCounter: bigint = BigInt(RandomHelpers.getRandomIntFromTo(circle_config.split_transfer[0], circle_config.split_transfer[1]))
+            let sendRes: ActionResult[] = await wallet.splitTransfer(starkTokens.ETH, walletTripple[3], transferCounter, amountToTransfer)
+            for (let result of sendRes) {
+                wallet.updateProgress(result.transactionHash)
+            }
             await wallet.sendProgress()
             let nonZeroAccs: AccData[] = []
             let oldBalance = await exch.getMainBalance()
