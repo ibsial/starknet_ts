@@ -117,12 +117,12 @@ class StarknetWallet {
             let amountFrom: bigint = NumbersHelpers.floatStringToBigInt(eth_bridge.amount_to_leave_from, 18n)
             let amountTo: bigint = NumbersHelpers.floatStringToBigInt(eth_bridge.amount_to_leave_to, 18n)
             let amountToLeave: bigint = RandomHelpers.getRandomBnFromTo(amountFrom, amountTo)
-            let amount = BigInt(balance - (estimate * price * 125n) / 100n) - amountToLeave
+            let amount = BigInt(balance - (estimate * price * 125n) / 100n) - amountToLeave - BigInt(res.overall_fee)
 
             tx = await bridge.deposit(amount, this.starknetAddress, {
                 value: BigInt(res.overall_fee) + amount,
                 gasPrice: price,
-                gasLimit: (estimate * 13n) / 10n
+                gasLimit: (estimate * 12n) / 10n
             })
             // log(tx)
             log(`sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${this.starknetAddress}`)

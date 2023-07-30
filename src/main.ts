@@ -48,7 +48,7 @@ async function volumeCircle(walletTripples: any[]) {
         }
         await checkGas()
         if (eth_bridge.need_bridge) {
-            let bridgeRes = await wallet.bridgeMainnet()
+            let bridgeRes = await retry(wallet.bridgeMainnet.bind(wallet), {})
             wallet.updateProgress(bridgeRes.transactionHash)
             await sleep(5 * 60, 'Bridged to starknet')
         }
