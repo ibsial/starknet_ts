@@ -224,9 +224,7 @@ class StarknetWallet {
         let multicall
         try {
             multicall = await this.starknetAccount.execute([transferCallData])
-            let pasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(amount, token.decimals)} ${token.name} from ${
-                this.starknetAddress
-            } to OKX: ${to}`
+            let pasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(amount, token.decimals)} ${token.name} from ${this.starknetAddress} to OKX: ${to}`
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
@@ -239,7 +237,6 @@ class StarknetWallet {
         }
     }
     /**
-     * Не забудь вычесть комиссию
      * @param token 
      * @param to 
      * @param count 
@@ -266,14 +263,12 @@ class StarknetWallet {
                 // substract send fee
                 transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n))])
                 multicall = await this.starknetAccount.execute([transferCallData])
-                let pasta = `[${NumbersHelpers.bigIntToFloatStr(parts[i] * 100n / sum, 0n)}%]\n✅ transferred ${NumbersHelpers.bigIntToFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
+                let pasta = `[${NumbersHelpers.bigIntToPrettyFloatStr(parts[i] * 100n / sum, 0n)}%]\n✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
                     token.name
                 } from ${this.starknetAddress} to OKX: ${to}`
                 log(pasta)
                 log(`[ ${this.starknetAddress} ]`)
-                let telegramPasta = `✅ transferred ${NumbersHelpers.bigIntToFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
-                    token.name
-                } to OKX`
+                let telegramPasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${token.name} to OKX`
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
                 results.push(await this.retryGetTxStatus(multicall.transaction_hash, telegramPasta))
             } catch (e: any) {
@@ -373,9 +368,9 @@ class StarknetWallet {
                 RandomHelpers.getRandomDeadline()
             ])
             const multicall = await this.starknetAccount.execute([approveCallData, swapCallData])
-            let pasta = `✅ swapped ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
+            let pasta = `✅ swapped ${NumbersHelpers.bigIntToPrettyFloatStr(amountIn, tokenIn.decimals)} ${
                 tokenIn.name
-            } for ${NumbersHelpers.bigIntToFloatStr(amountOut.result, tokenOut.decimals)} ${tokenOut.name}`
+            } for ${NumbersHelpers.bigIntToPrettyFloatStr(amountOut.result, tokenOut.decimals)} ${tokenOut.name}`
 
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
@@ -418,9 +413,9 @@ class StarknetWallet {
                 RandomHelpers.getRandomDeadline()
             ])
             const multicall = await this.starknetAccount.execute([approveCallDataA, approveCallDataB, addLpCallData])
-            let pasta = `✅ added LP ${NumbersHelpers.bigIntToFloatStr(amountA, tokenA.decimals)} ${
+            let pasta = `✅ added LP ${NumbersHelpers.bigIntToPrettyFloatStr(amountA, tokenA.decimals)} ${
                 tokenA.name
-            } | ${NumbersHelpers.bigIntToFloatStr(amountB, tokenB.decimals)} ${tokenB.name} to ${amm.name}`
+            } | ${NumbersHelpers.bigIntToPrettyFloatStr(amountB, tokenB.decimals)} ${tokenB.name} to ${amm.name}`
 
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
@@ -476,10 +471,10 @@ class StarknetWallet {
                 ])
                 multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
             }
-            let pasta = `✅ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToFloatStr(
+            let pasta = `✅ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToPrettyFloatStr(
                 amounts.result[0],
                 lpToken.components.tokenA.decimals
-            )} ${lpToken.components.tokenA.name} and ${NumbersHelpers.bigIntToFloatStr(
+            )} ${lpToken.components.tokenA.name} and ${NumbersHelpers.bigIntToPrettyFloatStr(
                 amounts.result[1],
                 lpToken.components.tokenB.decimals
             )} ${lpToken.components.tokenB.name}`
@@ -537,9 +532,9 @@ class StarknetWallet {
         const approveCallData: Call = token.populate('approve', [call.contractAddress, uint256.bnToUint256(amountIn)])
         try {
             const multicall: any = await this.starknetAccount.execute([approveCallData, call])
-            let pasta = `✅ swapped on AVNU ${NumbersHelpers.bigIntToFloatStr(amountIn, tokenIn.decimals)} ${
+            let pasta = `✅ swapped on AVNU ${NumbersHelpers.bigIntToPrettyFloatStr(amountIn, tokenIn.decimals)} ${
                 tokenIn.name
-            } for ${NumbersHelpers.bigIntToFloatStr(BigInt(buyAmount), tokenOut.decimals)} ${tokenOut.name}`
+            } for ${NumbersHelpers.bigIntToPrettyFloatStr(BigInt(buyAmount), tokenOut.decimals)} ${tokenOut.name}`
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))

@@ -14,6 +14,9 @@ class Numbers {
     bigIntToFloatStr(amount: bigint, decimals: bigint): string {
         return formatUnits(amount, decimals)
     }
+    bigIntToPrettyFloatStr(amount: bigint, decimals: bigint): string {
+        return (parseFloat(formatUnits(amount, decimals))).toFixed(5)
+    }
     floatStringToBigInt(floatString: string, decimals: bigint): bigint {
         return parseUnits(floatString, decimals)
     }
@@ -227,4 +230,5 @@ const retry = async (
     return await retry(fn, { retries: tries, retryInterval, maxRetries, backoff }, ...args)
 }
 const gweiEthProvider = new JsonRpcProvider(ethereum.url)
+
 export { log, c, timeout, NumbersHelpers, RandomHelpers, Okex, removeElementFromArray, retry, sleep, getTxStatus, gweiEthProvider, evmTransactionPassed }
