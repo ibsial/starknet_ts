@@ -1,7 +1,7 @@
 import { ethereum, starknet } from '../data/networks'
 import { starknet_bridge_abi } from '../abi/starknet_bridge'
 import { eth_bridge, good_gwei, action_sleep_interval } from '../../config'
-import { RandomHelpers, NumbersHelpers, sleep, log, c, retry, getTxStatus, gweiEthProvider } from './helpers'
+import { RandomHelpers, NumbersHelpers, sleep, log, c, retry, getTxStatus, gweiEthProvider, evmTransactionPassed } from './helpers'
 import { erc20_abi } from '../abi/erc20'
 import { ActionResult, Token, Amm, ReadResponse, LpToken } from '../interfaces/Types'
 import { Wallet, JsonRpcProvider, HDNodeWallet, formatEther, ethers } from 'ethers'
@@ -128,6 +128,9 @@ class StarknetWallet {
             log(`sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${this.starknetAddress}`)
             log(`[ ${this.starknetAddress} ]`)
             log(c.green(ethereum.explorer.tx + tx.hash))
+            log(c.yellow(`wait tx status...`))
+            if(await evmTransactionPassed(this.ethProvider, tx.hash)) {
+                log(c.green(`success`))
             return {
                 success: true,
                 statusCode: 1,
@@ -135,6 +138,14 @@ class StarknetWallet {
                     this.starknetAddress
                 }`
             }
+        } else {
+            log(c.red(`Tx failed :(`))
+            return {
+                success: false,
+                statusCode: 0,
+                transactionHash: '❌ bridge failed'
+            }
+        }
         } catch (e: any) {
             log(e)
             // log(c.red('error', e))

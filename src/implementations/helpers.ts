@@ -155,6 +155,28 @@ async function getTxStatus(provider: any, hash: string, pasta: string): Promise<
         return { success: false, statusCode: 0, transactionHash: hash }
     }
 }
+async function evmTransactionPassed(provider: any, hash: string): Promise<any> {
+    let txReceipt;
+    // if provider != lite_provider
+    try {
+        txReceipt = await provider.getTransactionReceipt(hash);
+        // console.log(txReceipt);
+        if (txReceipt) {
+            return txReceipt.status;
+        } else {
+            return await evmTransactionPassed(provider, hash);
+        }
+        // if provider == lite_provider
+    } catch (e) {
+        txReceipt = await provider.getTxReceipt(hash);
+        // console.log(txReceipt);
+        if (txReceipt) {
+            return txReceipt;
+        } else {
+            return await evmTransactionPassed(provider, hash);
+        }
+    }
+}
 async function sleep(sec: number, reason = 'Sleep') {
     if (sec > 1) {
         sec = Math.round(sec)
@@ -205,4 +227,4 @@ const retry = async (
     return await retry(fn, { retries: tries, retryInterval, maxRetries, backoff }, ...args)
 }
 const gweiEthProvider = new JsonRpcProvider(ethereum.url)
-export { log, c, timeout, NumbersHelpers, RandomHelpers, Okex, removeElementFromArray, retry, sleep, getTxStatus, gweiEthProvider }
+export { log, c, timeout, NumbersHelpers, RandomHelpers, Okex, removeElementFromArray, retry, sleep, getTxStatus, gweiEthProvider, evmTransactionPassed }
