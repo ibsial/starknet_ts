@@ -82,9 +82,10 @@ class Okex {
         })
         this.okex.hostname = 'www.okx.cab'
     }
-    async withdrawEth(amount: bigint, toAddress?: string, toPrivateKey?: string): Promise<void> {
+    async withdrawEth(amount: bigint, toAddress?: string, toPrivateKey?: string): Promise<boolean> {
         let value: any = parseFloat(NumbersHelpers.bigIntToFloatStr(amount, 18n))
         value = value.toFixed(5)
+        try {
         if (toAddress) {
             await this.okex.withdraw('ETH', value, toAddress, {
                 fee: okx_config.fee,
@@ -99,6 +100,12 @@ class Okex {
                 password: okx_config.password
             })
         }
+        return true
+    } catch (e) {
+        log(e)
+        log(c.red(`error on OKX withdraw`))
+        return false
+    }
     }
     async getMainBalance(): Promise<bigint> {
         let balance: any = await this.okex.fetchBalance({ type: 'funding' })

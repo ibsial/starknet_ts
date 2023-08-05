@@ -35,7 +35,11 @@ async function volumeCircle(walletTripples: any[]) {
             } else {
                 toPrivate = walletTripple[1]
             }
-            await exch.withdrawEth(randAmount, undefined, toPrivate)
+            while(!await exch.withdrawEth(randAmount, undefined, toPrivate)) {
+                wallet.updateProgress(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nwithdraw from okx failed, check it`)
+                await wallet.sendProgress()
+                await sleep(600, "wait okx withdrawal")
+            }
             await sleep(3 * 60, 'withdraw from okx')
             }catch (e) {
                 log(e)
@@ -303,7 +307,7 @@ async function volumeCircle(walletTripples: any[]) {
                 }
             }
             if (nonZeroAccs.length > 0) {
-                exch.transferToMain('ETH', nonZeroAccs)
+                await exch.transferToMain('ETH', nonZeroAccs)
             }
         }
         let sleepTime = RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[0])
