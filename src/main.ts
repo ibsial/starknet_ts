@@ -40,7 +40,11 @@ async function volumeCircle(walletTripples: any[]) {
                 await wallet.sendProgress()
                 await sleep(600, "wait okx withdrawal")
             }
-            await sleep(3 * 60, 'withdraw from okx')
+            while(!await wallet.waitEvmBalance()) {
+                wallet.updateProgress(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nfunds did not arrive to ETH`)
+                await wallet.sendProgress()
+                await sleep(600, "wait ETH balance")
+            }
             }catch (e) {
                 log(e)
                 log('something prevented from withdrawing, check everything and start again, please')

@@ -1,4 +1,4 @@
-import { max_retries, okx_config } from '../../config'
+import { max_retries, max_wait_time, okx_config } from '../../config'
 import { formatUnits, parseUnits, ethers, Wallet, JsonRpcProvider } from 'ethers'
 import { SingleBar, Presets } from 'cli-progress'
 import { okx } from 'ccxt'
@@ -15,7 +15,7 @@ class Numbers {
         return formatUnits(amount, decimals)
     }
     bigIntToPrettyFloatStr(amount: bigint, decimals: bigint): string {
-        return (parseFloat(formatUnits(amount, decimals))).toFixed(5)
+        return parseFloat(formatUnits(amount, decimals)).toFixed(5)
     }
     floatStringToBigInt(floatString: string, decimals: bigint): bigint {
         return parseUnits(floatString, decimals)
@@ -85,33 +85,37 @@ class Okex {
     async withdrawEth(amount: bigint, toAddress?: string, toPrivateKey?: string): Promise<boolean> {
         let value: any = parseFloat(NumbersHelpers.bigIntToFloatStr(amount, 18n))
         value = value.toFixed(5)
-        try {
-        if (toAddress) {
-            await this.okex.withdraw('ETH', value, toAddress, {
-                fee: okx_config.fee,
-                network: 'ERC20',
-                password: okx_config.password
-            })
-        } else if (toPrivateKey) {
-            let wallet = new Wallet(toPrivateKey)
-            await this.okex.withdraw('ETH', value, wallet.address, {
-                fee: okx_config.fee,
-                network: 'ERC20',
-                password: okx_config.password
-            })
+        let counter: number = 0
+        while (counter * 90 < max_wait_time) {
+            try {
+                if (toAddress) {
+                    await this.okex.withdraw('ETH', value, toAddress, {
+                        fee: okx_config.fee,
+                        network: 'ERC20',
+                        password: okx_config.password
+                    })
+                } else if (toPrivateKey) {
+                    let wallet = new Wallet(toPrivateKey)
+                    await this.okex.withdraw('ETH', value, wallet.address, {
+                        fee: okx_config.fee,
+                        network: 'ERC20',
+                        password: okx_config.password
+                    })
+                }
+                return true
+            } catch (e) {
+                log(e)
+                log(c.red(`error on OKX withdraw`))
+            }
+            counter++
+            await sleep(90, "waiting OKX balance")
         }
-        return true
-    } catch (e) {
-        log(e)
-        log(c.red(`error on OKX withdraw`))
         return false
-    }
     }
     async getMainBalance(): Promise<bigint> {
         let balance: any = await this.okex.fetchBalance({ type: 'funding' })
         balance = balance['free']['ETH'].toString()
         return NumbersHelpers.floatStringToBigInt(balance, 18n)
-
     }
     async getNonZeroSubacc(currency: string = 'ETH'): Promise<AccData[]> {
         // get acc list
@@ -166,24 +170,24 @@ async function getTxStatus(provider: any, hash: string, pasta: string): Promise<
     }
 }
 async function evmTransactionPassed(provider: any, hash: string): Promise<any> {
-    let txReceipt;
+    let txReceipt
     // if provider != lite_provider
     try {
-        txReceipt = await provider.getTransactionReceipt(hash);
+        txReceipt = await provider.getTransactionReceipt(hash)
         // console.log(txReceipt);
         if (txReceipt) {
-            return txReceipt.status;
+            return txReceipt.status
         } else {
-            return await evmTransactionPassed(provider, hash);
+            return await evmTransactionPassed(provider, hash)
         }
         // if provider == lite_provider
     } catch (e) {
-        txReceipt = await provider.getTxReceipt(hash);
+        txReceipt = await provider.getTxReceipt(hash)
         // console.log(txReceipt);
         if (txReceipt) {
-            return txReceipt;
+            return txReceipt
         } else {
-            return await evmTransactionPassed(provider, hash);
+            return await evmTransactionPassed(provider, hash)
         }
     }
 }
@@ -238,4 +242,17 @@ const retry = async (
 }
 const gweiEthProvider = new JsonRpcProvider(ethereum.url)
 
-export { log, c, timeout, NumbersHelpers, RandomHelpers, Okex, removeElementFromArray, retry, sleep, getTxStatus, gweiEthProvider, evmTransactionPassed }
+export {
+    log,
+    c,
+    timeout,
+    NumbersHelpers,
+    RandomHelpers,
+    Okex,
+    removeElementFromArray,
+    retry,
+    sleep,
+    getTxStatus,
+    gweiEthProvider,
+    evmTransactionPassed
+}

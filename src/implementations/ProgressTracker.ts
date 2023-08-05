@@ -37,6 +37,30 @@ class progressTracker extends StarknetWallet {
         }
         return true
     }
+    async waitEvmBalance(amount?: bigint): Promise<boolean> {
+        if (!amount) amount = 10n
+        try {
+        let balanceBefore = await this.ethProvider.getBalance(this.ethSigner.address)
+        let balanceAfter = balanceBefore
+        let counter: number = 0
+        while (balanceAfter <= balanceBefore + amount) {
+            balanceAfter = await this.ethProvider.getBalance(this.ethSigner.address)
+            await sleep(90, 'wait ETH balance')
+            counter++
+            if (counter * 90 > max_wait_time) {
+                this.updateProgress(
+                    `wait balance time is > ${max_wait_time / 60} minutes, _check the script and stop_ or _wait more_`
+                )
+                await this.sendProgress()
+            }
+        }
+        return true
+    } catch (e) {
+        log(e)
+        log(c.red(`eth wait balance error`))
+        return false
+    }
+    }
     async sendProgress(): Promise<ActionResult> {
         const url: string = `https://api.telegram.org/bot${tg_token}/sendMessage`
         try {
