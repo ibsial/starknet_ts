@@ -1,4 +1,4 @@
-import { tg_token, tg_id } from '../../config'
+import { tg_token, tg_id, max_wait_time } from '../../config'
 import { Account, num, uint256, getChecksumAddress, Contract } from 'starknet'
 import { StarknetWallet } from './Wallet'
 import axios from 'axios'
@@ -17,6 +17,26 @@ class progressTracker extends StarknetWallet {
     updateProgress(pasta: string): void {
         this.telegramPaste = this.telegramPaste + pasta + '\n'
     }
+    async waitBalance(token: Token, amount?: bigint): Promise<boolean> {
+        if (!amount) amount = 10n
+        let balanceResponse = await this.getBalance(token)
+        if (!balanceResponse.success) return false
+        let balanceBefore = balanceResponse.result
+        let balanceAfter = balanceBefore
+        let counter: number = 0
+        while (balanceAfter <= balanceBefore + amount) {
+            balanceAfter = (await this.getBalance(token)).result
+            await sleep(90, 'wait balance')
+            counter++
+            if (counter * 90 > max_wait_time) {
+                this.updateProgress(
+                    `wait balance time is > ${max_wait_time / 60} minutes, _check the script and stop_ or _wait more_`
+                )
+                await this.sendProgress()
+            }
+        }
+        return true
+    }
     async sendProgress(): Promise<ActionResult> {
         const url: string = `https://api.telegram.org/bot${tg_token}/sendMessage`
         try {
@@ -24,7 +44,7 @@ class progressTracker extends StarknetWallet {
                 data: {
                     chat_id: tg_id,
                     parse_mode: 'markdown',
-                    text: this.telegramPaste,
+                    text: this.telegramPaste
                 }
             })
             if (await req.data.ok) {
