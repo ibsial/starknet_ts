@@ -33,6 +33,7 @@ class progressTracker extends StarknetWallet {
                     `wait balance time is > ${max_wait_time / 60} minutes, _check the script and stop_ or _wait more_`
                 )
                 await this.sendProgress()
+                return false
             }
         }
         return true

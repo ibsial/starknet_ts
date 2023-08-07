@@ -1,7 +1,17 @@
 import { ethereum, starknet } from '../data/networks'
 import { starknet_bridge_abi } from '../abi/starknet_bridge'
-import { eth_bridge, good_gwei, action_sleep_interval } from '../../config'
-import { RandomHelpers, NumbersHelpers, sleep, log, c, retry, getTxStatus, gweiEthProvider, evmTransactionPassed } from './helpers'
+import { eth_bridge, good_gwei, action_sleep_interval, wallet_sleep_interval } from '../../config'
+import {
+    RandomHelpers,
+    NumbersHelpers,
+    sleep,
+    log,
+    c,
+    retry,
+    getTxStatus,
+    gweiEthProvider,
+    evmTransactionPassed
+} from './helpers'
 import { erc20_abi } from '../abi/erc20'
 import { ActionResult, Token, Amm, ReadResponse, LpToken } from '../interfaces/Types'
 import { Wallet, JsonRpcProvider, HDNodeWallet, formatEther, ethers } from 'ethers'
@@ -16,7 +26,6 @@ import {
     Contract,
     Call,
     getChecksumAddress,
-    provider,
     EstimateFee
 } from 'starknet'
 import axios from 'axios'
@@ -125,27 +134,31 @@ class StarknetWallet {
                 gasLimit: (estimate * 12n) / 10n
             })
             // log(tx)
-            log(`sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${this.starknetAddress}`)
+            log(
+                `bridged ${NumbersHelpers.bigIntToPrettyFloatStr(amount, 18n)} ETH from ${this.ethSigner.address} to ${
+                    this.starknetAddress
+                }`
+            )
             log(`[ ${this.starknetAddress} ]`)
             log(c.green(ethereum.explorer.tx + tx.hash))
             log(c.yellow(`wait tx status...`))
-            if(await evmTransactionPassed(this.ethProvider, tx.hash)) {
+            if (await evmTransactionPassed(this.ethProvider, tx.hash)) {
                 log(c.green(`success`))
-            return {
-                success: true,
-                statusCode: 1,
-                transactionHash: `✅ sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${
-                    this.starknetAddress
-                }`
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ sent ${formatEther(amount)} ETH from ${this.ethSigner.address} to ${
+                        this.starknetAddress
+                    }`
+                }
+            } else {
+                log(c.red(`Tx failed :(`))
+                return {
+                    success: false,
+                    statusCode: 0,
+                    transactionHash: '❌ bridge failed'
+                }
             }
-        } else {
-            log(c.red(`Tx failed :(`))
-            return {
-                success: false,
-                statusCode: 0,
-                transactionHash: '❌ bridge failed'
-            }
-        }
         } catch (e: any) {
             log(e)
             // log(c.red('error', e))
@@ -224,7 +237,9 @@ class StarknetWallet {
         let multicall
         try {
             multicall = await this.starknetAccount.execute([transferCallData])
-            let pasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(amount, token.decimals)} ${token.name} from ${this.starknetAddress} to OKX: ${to}`
+            let pasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(amount, token.decimals)} ${
+                token.name
+            } from ${this.starknetAddress} to OKX: ${to}`
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
@@ -237,11 +252,11 @@ class StarknetWallet {
         }
     }
     /**
-     * @param token 
-     * @param to 
-     * @param count 
-     * @param amount 
-     * @returns 
+     * @param token
+     * @param to
+     * @param count
+     * @param amount
+     * @returns
      */
     async splitTransfer(token: Token, to: string, count: bigint, amount: bigint): Promise<ActionResult[]> {
         // randomize parts
@@ -258,17 +273,30 @@ class StarknetWallet {
         for (let i = 0; i < parts.length; i++) {
             try {
                 // estimate send fee
-                let transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256(amount * parts[i] / sum)])
+                let transferCallData = tokenContract.populate('transfer', [
+                    to,
+                    uint256.bnToUint256((amount * parts[i]) / sum)
+                ])
                 let avgFee: EstimateFee = await this.starknetAccount.estimateInvokeFee(transferCallData)
                 // substract send fee
-                transferCallData = tokenContract.populate('transfer', [to, uint256.bnToUint256((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n))])
+                transferCallData = tokenContract.populate('transfer', [
+                    to,
+                    uint256.bnToUint256((amount * parts[i]) / sum - (avgFee.overall_fee * 12n) / 10n)
+                ])
                 multicall = await this.starknetAccount.execute([transferCallData])
-                let pasta = `[${NumbersHelpers.bigIntToPrettyFloatStr(parts[i] * 100n / sum, 0n)}%]\n✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${
-                    token.name
-                } from ${this.starknetAddress} to OKX: ${to}`
+                let pasta = `[${NumbersHelpers.bigIntToPrettyFloatStr(
+                    (parts[i] * 100n) / sum,
+                    0n
+                )}%]\n✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(
+                    (amount * parts[i]) / sum - (avgFee.overall_fee * 12n) / 10n,
+                    token.decimals
+                )} ${token.name} from ${this.starknetAddress} to OKX: ${to}`
                 log(pasta)
                 log(`[ ${this.starknetAddress} ]`)
-                let telegramPasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(((amount * parts[i] / sum) - (avgFee.overall_fee * 12n / 10n)), token.decimals)} ${token.name} to OKX`
+                let telegramPasta = `✅ transferred ${NumbersHelpers.bigIntToPrettyFloatStr(
+                    (amount * parts[i]) / sum - (avgFee.overall_fee * 12n) / 10n,
+                    token.decimals
+                )} ${token.name} to OKX`
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
                 results.push(await this.retryGetTxStatus(multicall.transaction_hash, telegramPasta))
             } catch (e: any) {
@@ -292,7 +320,7 @@ class StarknetWallet {
         try {
             let tokenContract: Contract = new Contract(erc20_abi, token.address, this.starkProvider)
             balance = (await retry(tokenContract.balanceOf, {}, this.starknetAddress)).balance.low
-            log(this.starknetAddress)
+            // log(this.starknetAddress)
             return { success: true, statusCode: 1, result: balance }
         } catch (e) {
             console.log(e)
@@ -343,22 +371,22 @@ class StarknetWallet {
         amountIn: bigint,
         slippage: bigint
     ): Promise<ActionResult> {
-        const dex = new Contract(amm.abi, amm.address, this.starkProvider)
-        const token = new Contract(tokenIn.abi, tokenIn.address, this.starkProvider)
-        let amountOut: ReadResponse = await retry(
-            this.getAmountsOut.bind(this),
-            { maxRetries: 10 },
-            dex,
-            amm,
-            tokenIn,
-            tokenOut,
-            amountIn
-        )
-        if (!amountOut.success) {
-            return { success: amountOut.success, statusCode: 0, transactionHash: '' }
-        }
-        amountOut.result = amountOut.result - (amountOut.result * slippage) / 1000n
         try {
+            const dex = new Contract(amm.abi, amm.address, this.starkProvider)
+            const token = new Contract(tokenIn.abi, tokenIn.address, this.starkProvider)
+            let amountOut: ReadResponse = await retry(
+                this.getAmountsOut.bind(this),
+                { maxRetries: 10 },
+                dex,
+                amm,
+                tokenIn,
+                tokenOut,
+                amountIn
+            )
+            if (!amountOut.success) {
+                return { success: amountOut.success, statusCode: 0, transactionHash: '' }
+            }
+            amountOut.result = amountOut.result - (amountOut.result * slippage) / 1000n
             const approveCallData: Call = token.populate('approve', [amm.address, uint256.bnToUint256(amountIn)])
             const swapCallData: Call = dex.populate(amm.entryPoints['swapTokensForTokens'].name, [
                 uint256.bnToUint256(amountIn),
@@ -370,7 +398,9 @@ class StarknetWallet {
             const multicall = await this.starknetAccount.execute([approveCallData, swapCallData])
             let pasta = `✅ swapped ${NumbersHelpers.bigIntToPrettyFloatStr(amountIn, tokenIn.decimals)} ${
                 tokenIn.name
-            } for ${NumbersHelpers.bigIntToPrettyFloatStr(amountOut.result, tokenOut.decimals)} ${tokenOut.name}`
+            } for ${NumbersHelpers.bigIntToPrettyFloatStr(amountOut.result, tokenOut.decimals)} ${tokenOut.name} on ${
+                amm.name
+            }`
 
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)
@@ -471,13 +501,13 @@ class StarknetWallet {
                 ])
                 multicall = await this.starknetAccount.execute([approveCallData, removeLpCallData])
             }
-            let pasta = `✅ removed ${lpToken.token.name} from ${amm.name}, got \n${NumbersHelpers.bigIntToPrettyFloatStr(
-                amounts.result[0],
-                lpToken.components.tokenA.decimals
-            )} ${lpToken.components.tokenA.name} and ${NumbersHelpers.bigIntToPrettyFloatStr(
-                amounts.result[1],
-                lpToken.components.tokenB.decimals
-            )} ${lpToken.components.tokenB.name}`
+            let pasta = `✅ removed ${lpToken.token.name} from ${
+                amm.name
+            }, got \n${NumbersHelpers.bigIntToPrettyFloatStr(amounts.result[0], lpToken.components.tokenA.decimals)} ${
+                lpToken.components.tokenA.name
+            } and ${NumbersHelpers.bigIntToPrettyFloatStr(amounts.result[1], lpToken.components.tokenB.decimals)} ${
+                lpToken.components.tokenB.name
+            }`
 
             log(pasta)
             log(`[ ${this.starknetAddress} ]`)

@@ -43,6 +43,7 @@ async function volumeCircle(walletTripples: any[]) {
             while(!await wallet.waitEvmBalance()) {
                 wallet.updateProgress(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nfunds did not arrive to ETH`)
                 await wallet.sendProgress()
+                log(c.red(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nfunds did not arrive to ETH`))
                 await sleep(600, "wait ETH balance")
             }
             }catch (e) {
@@ -58,7 +59,12 @@ async function volumeCircle(walletTripples: any[]) {
         if (eth_bridge.need_bridge) {
             let bridgeRes = await retry(wallet.bridgeMainnet.bind(wallet), {})
             wallet.updateProgress(bridgeRes.transactionHash)
-            await sleep(5 * 60, 'Bridged to starknet')
+            while(!await wallet.waitBalance(starkTokens.ETH)) {
+                wallet.updateProgress(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nfunds did not arrive to STARK`)
+                await wallet.sendProgress()
+                log(c.red(`acc: [${index+1} / ${walletTripples.length}] ${wallet.starknetAddress} \nfunds did not arrive to STARK`))
+                await sleep(600, "wait ETH balance")
+            }
         }
         await checkGas()
         // deploy
@@ -77,7 +83,7 @@ async function volumeCircle(walletTripples: any[]) {
             circle_config.circles_count[0],
             circle_config.circles_count[1]
         )
-        log("circles to perform:", c.magenta(circleAmount))
+        log(c.bold("circles to perform:"), c.magenta(circleAmount))
         let fromTokenName: string = 'ETH'
         // fromToken = starkTokens['ETH']
         for (let i = 0; i < circleAmount; i++) {
@@ -290,7 +296,7 @@ async function volumeCircle(walletTripples: any[]) {
             let oldBalance = await exch.getMainBalance()
             while (nonZeroAccs.length == 0) {
                 // если не хотим ждать и достаточно денег, идём дальше
-                if (!circle_config.wait_okx_balance && oldBalance > NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)) {
+                if (oldBalance > NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)) {
                     log(c.yellow(`OKX balance is sufficient not to wait for deposit, continuing..`))
                     break
                 }
@@ -298,20 +304,19 @@ async function volumeCircle(walletTripples: any[]) {
                     if (oldBalance > NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)) {
                         log(`OKX balance: ${NumbersHelpers.bigIntToFloatStr(oldBalance, 18n)}, enough to go further`)
                         break
-                    }
-                    let currentBalance = await exch.getMainBalance()
-                    if (oldBalance < currentBalance) {
-                        log('deposited to main account successfully!')
-                        break
+                    } else  {
+                        log(`OKX balance: ${NumbersHelpers.bigIntToFloatStr(oldBalance, 18n)}, not enough to go further`)
                     }
                     nonZeroAccs = await exch.getNonZeroSubacc()
-                    await sleep(15, 'wait okx balance')
+                    oldBalance = await exch.getMainBalance()
+                    await sleep(30, 'wait okx balance')
                 } catch (e) {
                     log(e)
                 }
             }
             if (nonZeroAccs.length > 0) {
                 await exch.transferToMain('ETH', nonZeroAccs)
+                await sleep(30, 'wait okx balance')
             }
         }
         let sleepTime = RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[0])
@@ -320,6 +325,7 @@ async function volumeCircle(walletTripples: any[]) {
 }
 
 async function main() {
+    await sleep(150000)
     let wallets = await assembleAndRandomizeData()
     if (!wallets) return
     await volumeCircle(wallets)
