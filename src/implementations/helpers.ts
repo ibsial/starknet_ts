@@ -108,7 +108,7 @@ class Okex {
                 log(c.red(`error on OKX withdraw`))
             }
             counter++
-            await sleep(90, "waiting OKX balance")
+            await sleep(90, 'waiting OKX balance')
         }
         return false
     }
