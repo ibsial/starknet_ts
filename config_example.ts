@@ -1,3 +1,5 @@
+// можно задать любое названиие вашей консоли
+process.title = "Best starknet script" // если не нужно, закомментируйте
 export const tg_token = 'number_string:SomE-SYmboL-String'
 export const tg_id = 123456 // your id
 
@@ -54,6 +56,5 @@ export const circle_config = {
     split_transfer: [2, 4],
     // когда скрипт кидает эфир на окекс, нужно ли его ждать?
     // если средств с запасом, можно и не ждать
-    wait_okx_balance: true
 }
 
