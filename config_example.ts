@@ -1,5 +1,5 @@
 // можно задать любое названиие вашей консоли
-process.title = "Best starknet script" // если не нужно, закомментируйте
+process.title = "Best starknet script" // если не нужно, закомментируйте или оставьте как есть
 export const tg_token = 'number_string:SomE-SYmboL-String'
 export const tg_id = 123456 // your id
 

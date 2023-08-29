@@ -104,7 +104,7 @@ class StarknetWallet {
                 value: BigInt(res.overall_fee) + 1000000n
             })
             price = (await this.ethProvider.getFeeData()).gasPrice
-            log('send eth to starknet cost:', formatEther(estimate * price), 'ETH')
+            log('send eth to starknet cost:~', formatEther(estimate * price * 13n), 'ETH')
         } catch (e: any) {
             log(c.red('error:', e.code))
             if (e.code == 'INSUFFICIENT_FUNDS') {
@@ -126,12 +126,12 @@ class StarknetWallet {
             let amountFrom: bigint = NumbersHelpers.floatStringToBigInt(eth_bridge.amount_to_leave_from, 18n)
             let amountTo: bigint = NumbersHelpers.floatStringToBigInt(eth_bridge.amount_to_leave_to, 18n)
             let amountToLeave: bigint = RandomHelpers.getRandomBnFromTo(amountFrom, amountTo)
-            let amount = BigInt(balance - (estimate * price * 125n) / 100n) - amountToLeave - BigInt(res.overall_fee)
+            let amount = BigInt(balance - (estimate * price * 150n) / 100n) - amountToLeave - BigInt(res.overall_fee)
 
             tx = await bridge.deposit(amount, this.starknetAddress, {
                 value: BigInt(res.overall_fee) + amount,
-                gasPrice: price,
-                gasLimit: (estimate * 12n) / 10n
+                gasPrice: price * 12n / 10n,
+                gasLimit: estimate * 12n / 10n
             })
             // log(tx)
             log(
