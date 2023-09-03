@@ -539,9 +539,11 @@ class StarknetWallet {
             reqId = req.data[0].quoteId
             buyAmount = req.data[0].buyAmount
         } catch (e) {
-            log(e)
+            // log(e)
+            await sleep(30)
             return { success: false, statusCode: 0, transactionHash: '/quotes request failed' }
         }
+        await sleep(30)
         let call: any
         try {
             let req: any = await axios.post('https://starknet.api.avnu.fi/swap/v1/build', {
@@ -555,9 +557,11 @@ class StarknetWallet {
                 calldata: req.data.calldata
             }
         } catch (e) {
-            log(e)
+            // log(e)
+            await sleep(30)
             return { success: false, statusCode: 0, transactionHash: '/build request failed' }
         }
+        await sleep(30)
         const token = new Contract(tokenIn.abi, tokenIn.address, this.starkProvider)
         const approveCallData: Call = token.populate('approve', [call.contractAddress, uint256.bnToUint256(amountIn)])
         try {

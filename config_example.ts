@@ -4,6 +4,7 @@ export const tg_token = 'number_string:SomE-SYmboL-String'
 export const tg_id = 123456 // your id
 
 export const max_retries = 5
+export const max_wait_time = 20 * 60 // максмальное время ожидания на мосте
 // задержка между действиями одного кошелька
 export const action_sleep_interval = [3 * 60, 5 * 60] // в секундах
 // не ставьте задержку между аккаунтами меньше 10-15 минут, тк не будет выводить
