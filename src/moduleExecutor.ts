@@ -144,7 +144,10 @@ async function executeModules(wallet: progressTracker) {
 async function main() {
     let wallets = await assembleAndRandomizeData()
     if (!wallets) return
-    let wallet = new progressTracker(wallets[0][0], wallets[0][1], wallets[0][2])
-    executeModules(wallet)
+    for (let i = 0; i < wallets.length; i++) {
+        let wallet = new progressTracker(wallets[i][0], wallets[i][1], wallets[i][2])
+        wallet.updateProgress(`acc: [${i+1}/${wallets.length}] mnemonic_index: ${wallets[i][2]} address: ${wallet.starknetAddress}`)
+        executeModules(wallet)
+    }
 }
 main()
