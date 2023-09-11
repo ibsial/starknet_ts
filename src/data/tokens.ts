@@ -2,7 +2,8 @@ import { Token, Amm, LpToken } from '../interfaces/Types'
 import { jediswap_abi, jediswap_lp_abi } from '../abi/jediswap'
 import { tenKSwap_abi, tenKSwap_lp_abi } from '../abi/10kswap'
 import { erc20_abi } from '../abi/erc20'
-export const starkTokens = {
+// these tokens are used for swaps
+export const starkTokens: {[key: string]: Token} = {
     ETH: {
         name: 'ETH',
         address: '0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',

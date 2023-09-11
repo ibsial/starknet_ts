@@ -9,7 +9,8 @@ import {
     RandomHelpers,
     timeout,
     NumbersHelpers,
-    getTxStatus
+    getTxStatus,
+    gweiEthProvider
 } from './implementations/helpers'
 import { assembleAndRandomizeData } from './fs_manipulations'
 import { action_sleep_interval, circle_config, eth_bridge, okx_config, wallet_sleep_interval } from '../config'
@@ -304,6 +305,7 @@ async function volumeCircle(walletTripples: any[]) {
                 continue
             }
         }
+        await wallet.sendProgress()
         // transfer to OKX
         if (okx_config.need_withdraw) {
             let finalEthBalance = await wallet.getBalance(starkTokens.ETH)
@@ -366,7 +368,6 @@ async function volumeCircle(walletTripples: any[]) {
 }
 
 async function main() {
-    await sleep(150000)
     let wallets = await assembleAndRandomizeData()
     if (!wallets) return
     await volumeCircle(wallets)

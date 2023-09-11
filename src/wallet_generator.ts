@@ -23,26 +23,35 @@ function generateWallet(phrase: string, index?: number): string[] {
     })
     let addr = hash.calculateContractAddressFromHash(publicKey, argentProxyClassHash, constructorCallData, 0)
     keyPair.push(phrase)
-    keyPair.push(groundKey)
+    keyPair.push(index.toString())
     keyPair.push(getChecksumAddress(addr))
+    keyPair.push(groundKey)
     console.log(keyPair)
     return keyPair
 }
 
-async function generateManyFromOne(phrase: string, amount: number) {
+async function generateManyFromOne(phrase: string, amount: number, start = 0) {
+    let date = Date.now()
+    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,address,key`)
     for (let i = 0; i < amount; i++) {
-        let keyPair = generateWallet(phrase, i)
+        let keyPair = generateWallet(phrase, start + i)
         keyPair[2] = getChecksumAddress(keyPair[2])
         let pasta = keyPair.toString()
-        await appendResultsToFile('starknet_wallets.csv'!, pasta!)
+        appendResultsToFile(`starknet_wallets_${date}.csv`, pasta!)
     }
 }
 async function generateManyFromMany(phrases: string[]) {
+    let date = Date.now()
+    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,key,address`)
     for (let phrase of phrases) {
         let keyPair = generateWallet(phrase)
         let pasta = keyPair.toString()
-        await appendResultsToFile('starknet_wallets.csv'!, pasta!)
+        appendResultsToFile(`starknet_wallets_${date}.csv`, pasta!)
     }
 }
+let seed = "any word that is in the dictionary and there are twelve words" // your seed
+let amount = 100 // how many wallets we generate
+let startingIndex = 0 // index wich we start from
+await generateManyFromOne(seed, amount, startingIndex)
 
 export { generateManyFromMany, generateManyFromOne }

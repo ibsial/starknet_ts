@@ -2,6 +2,8 @@
   "scripts": {
     "start": "node ./dist/index.js",
     "serve": "npx ts-node ./src/main.ts",
+    "cheap": "npx ts-node ./src/moduleExecutor.ts",
+    "generate": "npx ts-node ./src/wallet_generator.ts",
     "dev": "nodemon ./src/main.ts --ignore '*.json'"
   },
   "devDependencies": {

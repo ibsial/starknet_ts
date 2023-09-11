@@ -19,13 +19,13 @@ export const importData = async (filename) => {
     await once(rl, 'close')
     return data
 }
-export const appendResultsToFile = async (file, data) => {
-    fs.appendFile(`${file}`, data + '\n', (err) => {
+export const appendResultsToFile = (file, data) => {
+    fs.appendFileSync(`${file}`, data + '\n', (err) => {
         if (err) throw err
     })
 }
 export const writeToFile = async (file, data) => {
-    fs.writeFile(`${file}`, data + '\n', (err) => {
+    await fs.writeFile(`${file}`, data + '\n', (err) => {
         if (err) throw err
     })
 }

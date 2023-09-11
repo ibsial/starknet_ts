@@ -1,6 +1,6 @@
 import { ethereum, starknet } from '../data/networks'
 import { starknet_bridge_abi } from '../abi/starknet_bridge'
-import { eth_bridge, good_gwei, action_sleep_interval, wallet_sleep_interval } from '../../config'
+import { eth_bridge, good_gwei, action_sleep_interval, wallet_sleep_interval, modulesCount } from '../../config'
 import {
     RandomHelpers,
     NumbersHelpers,
@@ -14,7 +14,7 @@ import {
 } from './helpers'
 import { erc20_abi } from '../abi/erc20'
 import { ActionResult, Token, Amm, ReadResponse, LpToken } from '../interfaces/Types'
-import { Wallet, JsonRpcProvider, HDNodeWallet, formatEther, ethers } from 'ethers'
+import { Wallet, JsonRpcProvider, HDNodeWallet, formatEther, ethers, keccak256, getBytes, parseEther } from 'ethers'
 import {
     Account,
     CallData,
@@ -26,16 +26,22 @@ import {
     Contract,
     Call,
     getChecksumAddress,
-    EstimateFee
+    EstimateFee,
+    stark
 } from 'starknet'
 import axios from 'axios'
-
+import { starknetId } from '../abi/starknetId'
+import { starkverse } from '../abi/starkverse'
+import { dmail } from '../abi/dmail'
+import { starkTokens } from '../data/tokens'
+import { unframed } from '../abi/unframed'
+import { zkLend } from '../abi/zkLend'
 class StarknetWallet {
     // init Account here
     mnemonic: string
     ethProvider: JsonRpcProvider
     ethSigner: Wallet
-
+    modulesCount: any
     starkProvider = new SequencerProvider({
         baseUrl: constants.BaseUrl.SN_MAIN
     })
@@ -78,6 +84,19 @@ class StarknetWallet {
         this.starknetKey = groundKey
         this.starknetAddress = getChecksumAddress(addr)
         this.starknetAccount = new Account(this.starkProvider, addr, groundKey)
+
+        this.modulesCount = {}
+        for (let key in modulesCount) {
+            this.modulesCount[key] = RandomHelpers.getRandomIntFromTo(modulesCount[key][0], modulesCount[key][1])
+        }
+        this.modulesCount.sum = () => {
+            let sum = 0
+            for (let key in modulesCount) {
+                if (key == 'sum') continue
+                sum += this.modulesCount[key]
+            }
+            return sum
+        }
     }
     async bridgeMainnet(): Promise<ActionResult> {
         const bridge = new ethers.Contract(
@@ -130,8 +149,8 @@ class StarknetWallet {
 
             tx = await bridge.deposit(amount, this.starknetAddress, {
                 value: BigInt(res.overall_fee) + amount,
-                gasPrice: price * 12n / 10n,
-                gasLimit: estimate * 12n / 10n
+                gasPrice: (price * 12n) / 10n,
+                gasLimit: (estimate * 12n) / 10n
             })
             // log(tx)
             log(
@@ -153,28 +172,16 @@ class StarknetWallet {
                 }
             } else {
                 log(c.red(`Tx failed :(`))
-                return {
-                    success: false,
-                    statusCode: 0,
-                    transactionHash: '❌ bridge failed'
-                }
+                return { success: false, statusCode: 0, transactionHash: '❌ bridge failed' }
             }
         } catch (e: any) {
             log(e)
             // log(c.red('error', e))
             log(c.red('error', e.code))
             if (e.code == 'INSUFFICIENT_FUNDS') {
-                return {
-                    success: false,
-                    statusCode: -1,
-                    transactionHash: '❌ INSUFFICIENT_FUNDS'
-                }
+                return { success: false, statusCode: -1, transactionHash: '❌ INSUFFICIENT_FUNDS' }
             } else {
-                return {
-                    success: false,
-                    statusCode: 0,
-                    transactionHash: '❌ bridge failed'
-                }
+                return { success: false, statusCode: 0, transactionHash: '❌ bridge failed' }
             }
         }
     }
@@ -224,7 +231,12 @@ class StarknetWallet {
         }
         try {
             const tx = await this.starknetAccount.deployAccount(deployAccountPayload)
-            log(tx)
+            let txPassed = await this.retryGetTxStatus(tx.transaction_hash, "")
+            if (!txPassed.success) {
+                log('❌ account deploy failed')
+                return { success: false, statusCode: 0, transactionHash: '❌ account deploy failed' }
+            }
+            log(`✅ deployed ${this.starknetAddress}`)
             return { success: true, statusCode: 1, transactionHash: `✅ deployed ${this.starknetAddress}` }
         } catch (e: any) {
             log(e)
@@ -577,6 +589,215 @@ class StarknetWallet {
             log(e)
             return { success: false, statusCode: 0, transactionHash: '❌send avnu tx failed' }
         }
+    }
+    /**
+     * retriable mint starknet id function
+     * @returns
+     */
+    async mintStarknetId(): Promise<ActionResult> {
+        // let randomId = RandomHelpers.getRandomInt(1000000000000)
+        const starknetIdContract: Contract = new Contract(starknetId.abi, starknetId.address, this.starkProvider)
+        const mintResult = async () => {
+            try {
+                const mint: Call = starknetIdContract.populate('mint', [RandomHelpers.getRandomInt(1000000000000)])
+                const multicall: any = await this.starknetAccount.execute([mint])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ starknet id mint tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ starknet id mint tx rejected' }
+                }
+                return { success: true, statusCode: 1, transactionHash: '✅ starknet id mint successfully' }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ starknet id mint failed' }
+            }
+        }
+        // let tx = await mintResult()
+        return await retry(mintResult, { maxRetries: 30, retryInterval: 10 })
+    }
+    async mintStarkverseGenesisNft(): Promise<ActionResult> {
+        const starkverseContract: Contract = new Contract(starkverse.abi, starkverse.address, this.starkProvider)
+        const mintResult = async () => {
+            try {
+                const mint: Call = starkverseContract.populate('publicMint', [this.starknetAddress])
+                const multicall: any = await this.starknetAccount.execute([mint])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ starkverse mint tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ starkverse mint tx rejected' }
+                }
+                return { success: true, statusCode: 1, transactionHash: '✅ starkverse mint successfully' }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ starkverse mint failed' }
+            }
+        }
+        return await retry(mintResult, {})
+    }
+    async sendDmail(): Promise<ActionResult> {
+        const dmailContract: Contract = new Contract(dmail.abi, dmail.address, this.starkProvider)
+        const mintResult = async () => {
+            try {
+                const mint: Call = dmailContract.populate('transaction', [
+                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).slice(35),
+                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).slice(35)
+                ])
+                const multicall: any = await this.starknetAccount.execute([mint])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ dmail send tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ dmail send tx rejected' }
+                }
+                return { success: true, statusCode: 1, transactionHash: '✅ dmail sent successfully' }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ dmail send failed' }
+            }
+        }
+        return await retry(mintResult, {})
+    }
+    /**
+     * retriable
+     * increase allowance to Unframed
+     * @returns
+     */
+    async approve(): Promise<ActionResult> {
+        const tokenContract: Contract = new Contract(starkTokens.ETH.abi, starkTokens.ETH.address, this.starkProvider)
+        const mintResult = async () => {
+            try {
+                const approveTx: Call = tokenContract.populate('increaseAllowance', [
+                    unframed.address,
+                    uint256.bnToUint256(RandomHelpers.getRandomValue('0.00000001', '0.00001'))
+                ])
+                const multicall: any = await this.starknetAccount.execute([approveTx])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ increase allowance tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ increase allowance tx rejected' }
+                }
+                return { success: true, statusCode: 1, transactionHash: '✅ increased allowance successfully' }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ increase allowance failed' }
+            }
+        }
+        return await retry(mintResult, {})
+    }
+    /**
+     * retriable
+     * cancel random generated order id
+     * @returns
+     */
+    async cancelOrder(): Promise<ActionResult> {
+        const unframedContract: Contract = new Contract(unframed.abi, unframed.address, this.starkProvider)
+        const cancelResult = async () => {
+            try {
+                const cancelTx: Call = unframedContract.populate('cancel_orders', [[stark.randomAddress()]])
+                const multicall: any = await this.starknetAccount.execute([cancelTx])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ cancel order tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ cancel order tx rejected' }
+                }
+                return { success: true, statusCode: 1, transactionHash: '✅ canceled order successfully' }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ cancel order failed' }
+            }
+        }
+        return await retry(cancelResult, {})
+    }
+    /**
+     * retriable
+     * is token registered on zkLend
+     * @param token
+     * @returns
+     */
+    async isRegisteredZkLend(token: Token): Promise<ReadResponse> {
+        const zklendContract: Contract = new Contract(zkLend.abi, zkLend.address, this.starkProvider)
+        const isRegisteredResult = async () => {
+            let readRes: any
+            try {
+                readRes = await zklendContract.call('is_collateral_enabled', [this.starknetAddress, token.address])
+                // log(readRes)
+                return { success: true, statusCode: 1, result: readRes.enabled }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, result: 0n }
+            }
+        }
+        return await retry(isRegisteredResult, {})
+    }
+    /**
+     * retriable
+     * enable collateral for <Token> at zkLend
+     * @returns
+     */
+    async registerZkLend(token: Token): Promise<ActionResult> {
+        const zklendContract: Contract = new Contract(zkLend.abi, zkLend.address, this.starkProvider)
+        const registerResult = async () => {
+            try {
+                const registerTx: Call = zklendContract.populate('enable_collateral', [token.address])
+                const multicall: any = await this.starknetAccount.execute([registerTx])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log(`❌ enable ${token.name} at zkLend tx rejected`)
+                    return {
+                        success: false,
+                        statusCode: 0,
+                        transactionHash: `❌ enable ${token.name} at zkLend tx rejected`
+                    }
+                }
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ enabled ${token.name} at zkLend successfully`
+                }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: `❌ enable ${token.name} at zkLend failed` }
+            }
+        }
+        return await retry(registerResult, {})
+    }
+    /**
+     * retriable
+     * disable collateral for <Token> at zkLend
+     * @returns
+     */
+    async unregisterZkLend(token: Token): Promise<ActionResult> {
+        const zklendContract: Contract = new Contract(zkLend.abi, zkLend.address, this.starkProvider)
+        const registerResult = async () => {
+            try {
+                const unregisterTx: Call = zklendContract.populate('disable_collateral', [token.address])
+                const multicall: any = await this.starknetAccount.execute([unregisterTx])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log(`❌ disable ${token.name} at zkLend tx rejected`)
+                    return {
+                        success: false,
+                        statusCode: 0,
+                        transactionHash: `❌ disable ${token.name} at zkLend tx rejected`
+                    }
+                }
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ disabled ${token.name} at zkLend successfully`
+                }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: `❌ disable ${token.name} at zkLend failed` }
+            }
+        }
+        return await retry(registerResult, {})
     }
     /**
      * retried getTxStatus
