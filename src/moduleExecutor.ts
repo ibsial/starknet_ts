@@ -146,7 +146,9 @@ async function main() {
     if (!wallets) return
     for (let i = 0; i < wallets.length; i++) {
         let wallet = new progressTracker(wallets[i][0], wallets[i][1], wallets[i][2])
-        wallet.updateProgress(`acc: [${i+1}/${wallets.length}] mnemonic_index: ${wallets[i][2]} address: ${wallet.starknetAddress}`)
+        wallet.updateProgress(
+            `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${wallets[i][2]} address: ${wallet.starknetAddress}`
+        )
         await executeModules(wallet)
     }
 }

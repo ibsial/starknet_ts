@@ -10,14 +10,68 @@ import {
     timeout,
     NumbersHelpers,
     getTxStatus,
-    gweiEthProvider
+    gweiEthProvider,
+    defaultSleep
 } from './implementations/helpers'
 import { assembleAndRandomizeData } from './fs_manipulations'
 import { action_sleep_interval, circle_config, eth_bridge, okx_config, wallet_sleep_interval } from '../config'
 import { Contract } from 'starknet'
-import { ActionResult, ReadResponse, AccData } from './interfaces/Types'
+import { ActionResult, ReadResponse, AccData, Token } from './interfaces/Types'
 import { checkGas } from './implementations/Wallet'
 
+async function executeRandomModule(wallet: progressTracker) {
+    let module = RandomHelpers.chooseKeyFromStruct(wallet.modulesCount, 'sum')
+    if (wallet.modulesCount[module] <= 0) {
+        return
+    }
+    await checkGas()
+    log(module)
+    let res
+    switch (module) {
+        case 'mintStarknetId':
+            res = await wallet.mintStarknetId()
+
+            wallet.modulesCount[module] -= 1
+            wallet.updateProgress(res.transactionHash)
+            break
+        case 'mintStarkverseGenesisNft':
+            res = await wallet.mintStarkverseGenesisNft()
+
+            wallet.modulesCount[module] -= 1
+            wallet.updateProgress(res.transactionHash)
+            break
+        case 'unframedBidNCancel':
+            let res1 = await wallet.approve()
+
+            await defaultSleep(RandomHelpers.getRandomIntFromTo(15, 30))
+            let res2 = await wallet.cancelOrder()
+
+            wallet.modulesCount[module] -= 1
+            wallet.updateProgress(res1.transactionHash)
+            wallet.updateProgress(res2.transactionHash)
+            break
+        case 'zkLendAllowOrDisable':
+            let randTokenName: string = RandomHelpers.chooseKeyFromStruct(starkTokens)
+            let randToken: Token = starkTokens[randTokenName]
+            let isAllowed = await wallet.isRegisteredZkLend(randToken)
+            if (isAllowed.result <= 0n) {
+                res = await wallet.registerZkLend(randToken)
+            } else {
+                res = await wallet.unregisterZkLend(randToken)
+            }
+
+            wallet.modulesCount[module] -= 1
+            wallet.updateProgress(res.transactionHash)
+            break
+        case 'sendDmail':
+            res = await wallet.sendDmail()
+
+            wallet.modulesCount[module] -= 1
+            wallet.updateProgress(res.transactionHash)
+            break
+    }
+    await defaultSleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
+}
 async function volumeCircle(walletTripples: any[]) {
     for (let [index, walletTripple] of walletTripples.entries()) {
         let exch = new Okex()
@@ -105,6 +159,9 @@ async function volumeCircle(walletTripples: any[]) {
         }
         wallet.updateProgress(deployRes.transactionHash)
         await sleep(30)
+        if (RandomHelpers.getRandomInt(3) == 2) {
+            await executeRandomModule(wallet)
+        }
         // set random amount of circles
         let circleAmount: number = RandomHelpers.getRandomIntFromTo(
             circle_config.circles_count[0],
@@ -130,7 +187,7 @@ async function volumeCircle(walletTripples: any[]) {
             let toTokenName = RandomHelpers.chooseElementFromArray(circle_config.tokens)
             let toToken = starkTokens[toTokenName as keyof typeof starkTokens]
             if (circle_config.tokens.length == 0) {
-                log(c.red(`collision found`, c.bold(`can't cave 0 tokens in cfg`)))
+                log(c.red(`collision found`, c.bold(`can't have 0 tokens in cfg`)))
                 wallet.updateProgress(`❌❌❌ *you cant have 0 tokens in config! Restart the script*`)
                 await wallet.sendProgress()
                 await sleep(timeout * 2)
@@ -204,6 +261,9 @@ async function volumeCircle(walletTripples: any[]) {
                 await sleep(timeout, `something wrong with rpc`)
                 continue
             }
+            if (RandomHelpers.getRandomInt(3) == 2) {
+                await executeRandomModule(wallet)
+            }
             resp = await wallet.getBalance(toToken)
             if (resp.success) {
                 amountOut = resp.result
@@ -231,6 +291,9 @@ async function volumeCircle(walletTripples: any[]) {
                 continue
             }
             await checkGas()
+            if (RandomHelpers.getRandomInt(3) == 2) {
+                await executeRandomModule(wallet)
+            }
             addLpResp = await retry(wallet.addLp.bind(wallet), {}, amm, starkTokens.ETH, toToken, amountIn, amountOut)
             if (addLpResp.success) {
                 // log(addLpResp)
@@ -243,6 +306,9 @@ async function volumeCircle(walletTripples: any[]) {
                 continue
             }
             await checkGas()
+            if (RandomHelpers.getRandomInt(3) == 2) {
+                await executeRandomModule(wallet)
+            }
             // remove lp
             let removeLpResp: ActionResult
             let lpToken = wallet.getLpTokenByComponents(amm, starkTokens.ETH, toToken)
@@ -267,7 +333,9 @@ async function volumeCircle(walletTripples: any[]) {
                 await sleep(timeout, `something wrong with rpc`)
                 continue
             }
-
+            if (RandomHelpers.getRandomInt(3) == 2) {
+                await executeRandomModule(wallet)
+            }
             // swap token for eth
             let tokenAmountIn: bigint
             let lastResp = await wallet.getBalance(toToken)
@@ -303,6 +371,9 @@ async function volumeCircle(walletTripples: any[]) {
                 wallet.updateProgress(lastSwapResp!.transactionHash)
                 await sleep(timeout, `something wrong with rpc`)
                 continue
+            }
+            if (RandomHelpers.getRandomInt(3) == 2) {
+                await executeRandomModule(wallet)
             }
         }
         await wallet.sendProgress()

@@ -124,7 +124,7 @@ class Okex {
             try {
                     await this.okex.withdraw('ETH', value, toAddress, {
                         fee: okx_config.fee,
-                        network: 'StarkNet',
+                        network: 'Starknet',
                         password: okx_config.password
                     })
                 return true

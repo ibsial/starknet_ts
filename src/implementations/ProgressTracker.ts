@@ -70,15 +70,18 @@ class progressTracker extends StarknetWallet {
             let req: any = await axios.get(url, {
                 data: {
                     chat_id: tg_id,
-                    parse_mode: 'markdown',
+                    /* do not commit as is */
+                    // parse_mode: 'markdown',
                     text: this.telegramPaste
                 }
             })
             if (await req.data.ok) {
                 return { success: true, statusCode: 1, transactionHash: '' }
             }
+            // log(req)
             return { success: false, statusCode: 0, transactionHash: '' }
         } catch (e) {
+            // log(e)
             return { success: false, statusCode: 0, transactionHash: '' }
         }
     }

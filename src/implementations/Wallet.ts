@@ -641,8 +641,8 @@ class StarknetWallet {
         const mintResult = async () => {
             try {
                 const mint: Call = dmailContract.populate('transaction', [
-                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).slice(35),
-                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).slice(35)
+                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).substring(0, 65),
+                    keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).substring(0, 65)
                 ])
                 const multicall: any = await this.starknetAccount.execute([mint])
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
