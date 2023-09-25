@@ -383,6 +383,7 @@ class StarknetWallet {
         amountIn: bigint,
         slippage: bigint
     ): Promise<ActionResult> {
+        slippage = RandomHelpers.getRandomBnFromTo(10n, 30n)
         try {
             const dex = new Contract(amm.abi, amm.address, this.starkProvider)
             const token = new Contract(tokenIn.abi, tokenIn.address, this.starkProvider)
