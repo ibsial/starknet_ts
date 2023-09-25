@@ -80,50 +80,78 @@ async function volumeCircle(walletTripples: any[]) {
         // withdraw from OKX
         await checkGas()
         if (okx_config.need_withdraw) {
-            try {
-                let randAmountFrom = NumbersHelpers.floatStringToBigInt(okx_config.amount_from, 18n)
-                let randAmountTo = NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)
-                let randAmount = RandomHelpers.getRandomBnFromTo(randAmountFrom, randAmountTo)
-                let toPrivate
-                if (walletTripple[1] == undefined) {
-                    toPrivate = wallet.ethSigner.privateKey
-                } else {
-                    toPrivate = walletTripple[1]
-                }
-                while (!(await exch.withdrawEth(randAmount, undefined, toPrivate))) {
-                    wallet.updateProgress(
-                        `acc: [${index + 1} / ${walletTripples.length}] ${
-                            wallet.starknetAddress
-                        } \nwithdraw from okx failed, check it`
-                    )
-                    await wallet.sendProgress()
-                    await sleep(600, 'wait okx withdrawal')
-                }
-                while (!(await wallet.waitEvmBalance())) {
-                    wallet.updateProgress(
-                        `acc: [${index + 1} / ${walletTripples.length}] ${
-                            wallet.starknetAddress
-                        } \nfunds did not arrive to ETH`
-                    )
-                    await wallet.sendProgress()
-                    log(
-                        c.red(
+            if (okx_config.network == 'eth') {
+                try {
+                    let randAmountFrom = NumbersHelpers.floatStringToBigInt(okx_config.amount_from, 18n)
+                    let randAmountTo = NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)
+                    let randAmount = RandomHelpers.getRandomBnFromTo(randAmountFrom, randAmountTo)
+                    let toPrivate
+                    if (walletTripple[1] == undefined) {
+                        toPrivate = wallet.ethSigner.privateKey
+                    } else {
+                        toPrivate = walletTripple[1]
+                    }
+                    while (!(await exch.withdrawEth(randAmount, undefined, toPrivate))) {
+                        wallet.updateProgress(
+                            `acc: [${index + 1} / ${walletTripples.length}] ${
+                                wallet.starknetAddress
+                            } \nwithdraw from okx failed, check it`
+                        )
+                        await wallet.sendProgress()
+                        await sleep(600, 'wait okx withdrawal')
+                    }
+                    while (!(await wallet.waitEvmBalance())) {
+                        wallet.updateProgress(
                             `acc: [${index + 1} / ${walletTripples.length}] ${
                                 wallet.starknetAddress
                             } \nfunds did not arrive to ETH`
                         )
+                        await wallet.sendProgress()
+                        log(
+                            c.red(
+                                `acc: [${index + 1} / ${walletTripples.length}] ${
+                                    wallet.starknetAddress
+                                } \nfunds did not arrive to ETH`
+                            )
+                        )
+                        await sleep(600, 'wait ETH balance')
+                    }
+                } catch (e) {
+                    log(e)
+                    log('something prevented from withdrawing, check everything and start again, please')
+                    wallet.updateProgress(
+                        '*something prevented from withdrawing, check everything and start again, please*'
                     )
-                    await sleep(600, 'wait ETH balance')
+                    await wallet.sendProgress()
+                    await sleep(timeout * 3, 'okx withdraw fail')
+                    break
                 }
-            } catch (e) {
-                log(e)
-                log('something prevented from withdrawing, check everything and start again, please')
-                wallet.updateProgress(
-                    '*something prevented from withdrawing, check everything and start again, please*'
-                )
-                await wallet.sendProgress()
-                await sleep(timeout * 3, 'okx withdraw fail')
-                break
+            } else {
+                try {
+                    let randAmountFrom = NumbersHelpers.floatStringToBigInt(okx_config.amount_from, 18n)
+                    let randAmountTo = NumbersHelpers.floatStringToBigInt(okx_config.amount_to, 18n)
+                    let randAmount = RandomHelpers.getRandomBnFromTo(randAmountFrom, randAmountTo)
+                    console.log(wallet.starknetAddress)
+                    while (!(await exch.withdrawStarknet(randAmount, wallet.starknetAddress))) {
+                        wallet.updateProgress(`acc: ${wallet.starknetAddress} \nwithdraw from okx failed, check it`)
+                        await wallet.sendProgress()
+                        await sleep(600, 'wait okx withdrawal')
+                    }
+                    while (!(await wallet.waitBalance(starkTokens.ETH))) {
+                        wallet.updateProgress(`acc: ${wallet.starknetAddress} \nfunds did not arrive to ETH`)
+                        await wallet.sendProgress()
+                        log(c.red(`acc: ${wallet.starknetAddress} \nfunds did not arrive to ETH`))
+                        await sleep(600, 'wait ETH balance')
+                    }
+                } catch (e) {
+                    log(e)
+                    log('something prevented from withdrawing, check everything and start again, please')
+                    wallet.updateProgress(
+                        '*something prevented from withdrawing, check everything and start again, please*'
+                    )
+                    await wallet.sendProgress()
+                    await sleep(timeout * 3, 'okx withdraw fail')
+                }
             }
         }
         await checkGas()
@@ -155,10 +183,12 @@ async function volumeCircle(walletTripples: any[]) {
             wallet.updateProgress(deployRes.transactionHash + '\n*Restart script*')
             await wallet.sendProgress()
             await sleep(timeout * 3, 'fail on deploy')
-            return
+            continue
+        } else {
+            await sleep(30)
         }
         wallet.updateProgress(deployRes.transactionHash)
-        await sleep(30)
+
         if (RandomHelpers.getRandomInt(3) == 2) {
             await executeRandomModule(wallet)
         }
@@ -191,7 +221,7 @@ async function volumeCircle(walletTripples: any[]) {
                 wallet.updateProgress(`❌❌❌ *you cant have 0 tokens in config! Restart the script*`)
                 await wallet.sendProgress()
                 await sleep(timeout * 2)
-                return
+                continue
             }
             await checkGas()
             // get amountIn

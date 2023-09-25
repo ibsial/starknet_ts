@@ -13,6 +13,7 @@ export const good_gwei = 25 // ограничитель гвея
 
 export const okx_config = {
     need_withdraw: true,
+    network: "starknet", // "starknet" or "eth"
     amount_from: "0.002",
     amount_to: "0.003",
 
