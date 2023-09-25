@@ -38,17 +38,17 @@ class progressTracker extends StarknetWallet {
         }
         return true
     }
-    async waitEvmBalance(amount?: bigint): Promise<boolean> {
+    async waitEvmBalance(amount?: bigint, timeWaited?: number): Promise<boolean> {
+        if(!timeWaited) timeWaited = 0
         if (!amount) amount = 10n
         try {
             let balanceBefore = await this.ethProvider.getBalance(this.ethSigner.address)
             let balanceAfter = balanceBefore
-            let counter: number = 0
             while (balanceAfter <= balanceBefore + amount) {
                 balanceAfter = await this.ethProvider.getBalance(this.ethSigner.address)
                 await sleep(90, 'wait ETH balance')
-                counter++
-                if (counter * 90 > max_wait_time) {
+                timeWaited += 90
+                if (timeWaited > max_wait_time) {
                     this.updateProgress(
                         `wait balance time is > ${
                             max_wait_time / 60
@@ -61,7 +61,7 @@ class progressTracker extends StarknetWallet {
         } catch (e) {
             log(e)
             log(c.red(`eth wait balance error`))
-            return false
+            return await this.waitEvmBalance(amount, timeWaited);
         }
     }
     async sendProgress(): Promise<ActionResult> {

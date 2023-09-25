@@ -25,7 +25,7 @@ async function executeRandomModule(wallet: progressTracker) {
         return
     }
     await checkGas()
-    log(module)
+    log(`executing random module: ${module}`)
     let res
     switch (module) {
         case 'mintStarknetId':
@@ -124,7 +124,7 @@ async function volumeCircle(walletTripples: any[]) {
                     )
                     await wallet.sendProgress()
                     await sleep(timeout * 3, 'okx withdraw fail')
-                    break
+                    continue
                 }
             } else {
                 try {
@@ -179,13 +179,11 @@ async function volumeCircle(walletTripples: any[]) {
         // deploy
         let deployRes = await wallet.checkAndDeployWallet()
         if (!deployRes.success) {
-            log(c.red('failed to deploy account, need to add retry here'))
-            wallet.updateProgress(deployRes.transactionHash + '\n*Restart script*')
+            log(c.red('failed to deploy account'))
+            wallet.updateProgress(deployRes.transactionHash + '\n*Moving to next wallet or restart script*')
             await wallet.sendProgress()
             await sleep(timeout * 3, 'fail on deploy')
             continue
-        } else {
-            await sleep(30)
         }
         wallet.updateProgress(deployRes.transactionHash)
 
@@ -273,7 +271,7 @@ async function volumeCircle(walletTripples: any[]) {
                     fromToken,
                     toToken,
                     amountIn,
-                    RandomHelpers.getRandomBnFromTo(8n, 12n) // slippage from 1% to 3%
+                    RandomHelpers.getRandomBnFromTo(8n, 30n) // slippage from 1% to 3%
                 )
             } else if (ammName == 'avnu') {
                 swapResp = await retry(wallet.swapAvnu.bind(wallet), {}, fromToken, toToken, amountIn)
@@ -387,7 +385,7 @@ async function volumeCircle(walletTripples: any[]) {
                     toToken,
                     starkTokens.ETH,
                     tokenAmountIn,
-                    RandomHelpers.getRandomBnFromTo(10n, 30n) // slippage from 1% to 3%
+                    RandomHelpers.getRandomBnFromTo(8n, 30n) // slippage from 1% to 3%
                 )
             } else if (ammName == 'avnu') {
                 lastSwapResp = await retry(wallet.swapAvnu.bind(wallet), {}, toToken, starkTokens.ETH, tokenAmountIn)
