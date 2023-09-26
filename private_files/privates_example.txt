@@ -1,3 +1,0 @@
-your mnemonic;eth_private_key;index_of_mnemonic
-2) Or no key and no index:
-your mnemonic;;
