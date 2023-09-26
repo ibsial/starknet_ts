@@ -1,1 +1,1 @@
-your seed phrase;1 (index if needed)
+your seed phrase,1 (index if needed)
