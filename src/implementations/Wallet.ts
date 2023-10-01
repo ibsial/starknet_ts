@@ -1,6 +1,13 @@
 import { ethereum, starknet } from '../data/networks'
 import { starknet_bridge_abi } from '../abi/starknet_bridge'
-import { eth_bridge, good_gwei, action_sleep_interval, wallet_sleep_interval, modulesCount } from '../../config'
+import {
+    eth_bridge,
+    good_gwei,
+    action_sleep_interval,
+    wallet_sleep_interval,
+    modulesCount,
+    maxCount
+} from '../../config'
 import {
     RandomHelpers,
     NumbersHelpers,
@@ -42,6 +49,7 @@ class StarknetWallet {
     ethProvider: JsonRpcProvider
     ethSigner: Wallet
     modulesCount: any
+    maxModulesCount: number
     starkProvider = new SequencerProvider({
         baseUrl: constants.BaseUrl.SN_MAIN
     })
@@ -54,6 +62,7 @@ class StarknetWallet {
 
     private accountClassHash = '0x033434ad846cdd5f23eb73ff09fe6fddd568284a0fb7d1be20ee482f044dabe2'
     private argentProxyClassHash = '0x25ec026985a3bf9d0cc1fe17326b245dfdc3ff89b8fde106542a3ea56c5a918'
+    private argentClassHash_cairo1 = '0x1a736d6ed154502257f02b1ccdf4d9d1089f80811cd6acad48e6b6a9d1f2003'
     /**
      *
      * @param mnemonic starknet seed phrase
@@ -84,7 +93,7 @@ class StarknetWallet {
         this.starknetKey = groundKey
         this.starknetAddress = getChecksumAddress(addr)
         this.starknetAccount = new Account(this.starkProvider, addr, groundKey)
-
+        this.maxModulesCount = RandomHelpers.getRandomIntFromTo(maxCount[0], maxCount[1])
         this.modulesCount = {}
         for (let key in modulesCount) {
             this.modulesCount[key] = RandomHelpers.getRandomIntFromTo(modulesCount[key][0], modulesCount[key][1])
@@ -197,12 +206,45 @@ class StarknetWallet {
             return { success: false, statusCode: 0, result: false }
         }
     }
+    async upgradeWallet(): Promise<ActionResult> {
+        let currentClassHash = await retry(
+            this.starkProvider.getClassHashAt.bind(this.starkProvider),
+            {
+                maxRetries: 10,
+                retryInterval: 5
+            },
+            this.starknetAddress
+        )
+        log(currentClassHash)
+        if (currentClassHash != this.argentClassHash_cairo1) {
+            // upgrade
+            this.starknetAddress
+            const callData: Call = {
+                contractAddress: this.starknetAddress,
+                entrypoint: 'upgrade',
+                calldata: [this.argentClassHash_cairo1, '0x1', '0x0']
+            }
+            try {
+                const tx: any = await this.starknetAccount.execute(callData)
+                let txPassed = await this.retryGetTxStatus(tx.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ account upgrade failed')
+                    return { success: false, statusCode: 0, transactionHash: '❌ account upgrade failed' }
+                }
+                log(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}`)
+                return { success: true, statusCode: 1, transactionHash: `✅ upgraded to Cairo 1.0 ${this.starknetAddress}` }
+            } catch (e: any) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: `❌ account upgrade failed` }
+            }
+        }
+        return { success: true, statusCode: 1, transactionHash: `wallet version: Cairo 1.0` }
+    }
     /**
      * not retried checkAndDeployWallet
      * взято с https://www.starknetjs.com/docs/guides/create_account
      * @returns
      */
-
     async checkAndDeployWallet(): Promise<ActionResult> {
         let deployed: ReadResponse = await retry(this.isAccountDeployed.bind(this), {
             maxRetries: 10,
@@ -231,7 +273,7 @@ class StarknetWallet {
         }
         try {
             const tx = await this.starknetAccount.deployAccount(deployAccountPayload)
-            let txPassed = await this.retryGetTxStatus(tx.transaction_hash, "")
+            let txPassed = await this.retryGetTxStatus(tx.transaction_hash, '')
             if (!txPassed.success) {
                 log('❌ account deploy failed')
                 return { success: false, statusCode: 0, transactionHash: '❌ account deploy failed' }
@@ -856,6 +898,21 @@ class StarknetWallet {
             }
         }
         return { success: true, statusCode: 1, result: '' }
+    }
+    async checkGas() {
+        while (true) {
+            try {
+                log(await this.starkProvider.getBlock())
+                // let currentGwei = (await gweiEthProvider.getFeeData()).gasPrice
+                // if (currentGwei == null || currentGwei > NumbersHelpers.floatStringToBigInt(good_gwei.toString(), 9n)) {
+                //     await sleep(60, 'wait gas')
+                // } else {
+                //     return
+                // }
+            } catch (e) {
+                log(e)
+            }
+        }
     }
 }
 // check gas decorator
