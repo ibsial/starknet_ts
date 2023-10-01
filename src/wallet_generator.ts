@@ -1,6 +1,6 @@
 import { Account, CallData, Provider, SignerInterface, constants, ec, getChecksumAddress, hash } from 'starknet'
 import { Wallet, HDNodeWallet, ethers, toBeArray } from 'ethers'
-import { appendResultsToFile } from './fs_manipulations.js'
+import { appendResultsToFile, getDoubles } from './fs_manipulations.js'
 
 const accountClassHash = '0x033434ad846cdd5f23eb73ff09fe6fddd568284a0fb7d1be20ee482f044dabe2'
 const argentProxyClassHash = '0x25ec026985a3bf9d0cc1fe17326b245dfdc3ff89b8fde106542a3ea56c5a918'
@@ -49,9 +49,11 @@ async function generateManyFromMany(phrases: string[]) {
         appendResultsToFile(`starknet_wallets_${date}.csv`, pasta!)
     }
 }
-let seed = "any word that is in the dictionary and there are twelve words" // your seed
-let amount = 100 // how many wallets we generate
-let startingIndex = 0 // index wich we start from
-await generateManyFromOne(seed, amount, startingIndex)
-
+async function generate() {
+    let seed = 'any word that is in the dictionary and there are twelve words' // your seed
+    let amount = 100 // how many wallets we generate
+    let startingIndex = 0 // index wich we start from
+    await generateManyFromOne(seed, amount, startingIndex)
+}
+generate()
 export { generateManyFromMany, generateManyFromOne }

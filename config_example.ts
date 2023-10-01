@@ -28,6 +28,9 @@ export const eth_bridge = {
     amount_to_leave_from: '0.003',
     amount_to_leave_to: '0.0035'
 }
+// Настройка работает только при npm run cheap
+// нужна, чтобы прогревать одной транзакцией
+export const maxCount = [1, 2]
 // настройка дешевого скрипта
 export const modulesCount: {[key: string]: number[]} = {
     mintStarknetId: [3, 10],

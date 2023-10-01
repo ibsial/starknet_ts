@@ -67,76 +67,82 @@ async function executeModules(wallet: progressTracker) {
         initialPlan += `${key}: ${wallet.modulesCount[key]} | `
     }
     log(c.yellow(initialPlan))
+    log(c.bgMagenta(`max modules to do: ${wallet.maxModulesCount}`))
     while (wallet.modulesCount.sum() > 0) {
-        let module = RandomHelpers.chooseKeyFromStruct(wallet.modulesCount, 'sum')
-        if (wallet.modulesCount[module] <= 0) {
-            continue
-        }
-        await checkGas()
-        log(module)
-        let res
-        switch (module) {
-            case 'mintStarknetId':
-                res = await wallet.mintStarknetId()
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res.transactionHash
-                )
-                wallet.modulesCount[module] -= 1
-                wallet.updateProgress(res.transactionHash)
-                break
-            case 'mintStarkverseGenesisNft':
-                res = await wallet.mintStarkverseGenesisNft()
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res.transactionHash
-                )
-                wallet.modulesCount[module] -= 1
-                wallet.updateProgress(res.transactionHash)
-                break
-            case 'unframedBidNCancel':
-                let res1 = await wallet.approve()
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res1.transactionHash
-                )
-                await defaultSleep(RandomHelpers.getRandomIntFromTo(15, 30))
-                let res2 = await wallet.cancelOrder()
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res2.transactionHash
-                )
-                wallet.modulesCount[module] -= 1
-                wallet.updateProgress(res1.transactionHash)
-                wallet.updateProgress(res2.transactionHash)
-                break
-            case 'zkLendAllowOrDisable':
-                let randTokenName: string = RandomHelpers.chooseKeyFromStruct(starkTokens)
-                let randToken: Token = starkTokens[randTokenName]
-                let isAllowed = await wallet.isRegisteredZkLend(randToken)
-                if (isAllowed.result <= 0n) {
-                    res = await wallet.registerZkLend(randToken)
-                } else {
-                    res = await wallet.unregisterZkLend(randToken)
-                }
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res.transactionHash
-                )
-                wallet.modulesCount[module] -= 1
-                wallet.updateProgress(res.transactionHash)
-                break
-            case 'sendDmail':
-                res = await wallet.sendDmail()
-                log(
-                    `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
-                    res.transactionHash
-                )
-                wallet.modulesCount[module] -= 1
-                wallet.updateProgress(res.transactionHash)
-                break
-        }
+        if (wallet.maxModulesCount > 0) {
+            let module = RandomHelpers.chooseKeyFromStruct(wallet.modulesCount, 'sum')
+            if (wallet.modulesCount[module] <= 0) {
+                continue
+            }
+            await checkGas()
+            log(module)
+            let res
+            switch (module) {
+                case 'mintStarknetId':
+                    res = await wallet.mintStarknetId()
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res.transactionHash
+                    )
+                    wallet.modulesCount[module] -= 1
+                    wallet.updateProgress(res.transactionHash)
+                    break
+                case 'mintStarkverseGenesisNft':
+                    res = await wallet.mintStarkverseGenesisNft()
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res.transactionHash
+                    )
+                    wallet.modulesCount[module] -= 1
+                    wallet.updateProgress(res.transactionHash)
+                    break
+                case 'unframedBidNCancel':
+                    let res1 = await wallet.approve()
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res1.transactionHash
+                    )
+                    await defaultSleep(RandomHelpers.getRandomIntFromTo(15, 30))
+                    let res2 = await wallet.cancelOrder()
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res2.transactionHash
+                    )
+                    wallet.modulesCount[module] -= 1
+                    wallet.updateProgress(res1.transactionHash)
+                    wallet.updateProgress(res2.transactionHash)
+                    break
+                case 'zkLendAllowOrDisable':
+                    let randTokenName: string = RandomHelpers.chooseKeyFromStruct(starkTokens)
+                    let randToken: Token = starkTokens[randTokenName]
+                    let isAllowed = await wallet.isRegisteredZkLend(randToken)
+                    if (isAllowed.result <= 0n) {
+                        res = await wallet.registerZkLend(randToken)
+                    } else {
+                        res = await wallet.unregisterZkLend(randToken)
+                    }
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res.transactionHash
+                    )
+                    wallet.modulesCount[module] -= 1
+                    wallet.updateProgress(res.transactionHash)
+                    break
+                case 'sendDmail':
+                    res = await wallet.sendDmail()
+                    log(
+                        `${initialState[module] - wallet.modulesCount[module] + 1}/${initialState[module]}`,
+                        res.transactionHash
+                    )
+                    wallet.modulesCount[module] -= 1
+                    wallet.updateProgress(res.transactionHash)
+                    break
+            }
+            wallet.maxModulesCount--
         await defaultSleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
+        } else {
+            break
+        }
     }
     await wallet.sendProgress()
     await sleep(RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[1]))
