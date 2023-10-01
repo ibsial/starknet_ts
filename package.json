@@ -18,6 +18,6 @@
     "cli-progress": "^3.12.0",
     "ethers": "^6.6.4",
     "nodemon": "^3.0.1",
-    "starknet": "^5.14.1"
+    "starknet": "^5.19.5"
   }
 }
