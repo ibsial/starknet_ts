@@ -259,7 +259,7 @@ class StarknetWallet {
         if (!address) address = this.starknetAddress
         try {
             let nonce: string = await this.starkProvider.getNonceForAddress(address)
-            log(address, nonce)
+            // log(address, nonce)
             if (nonce != '0x0') {
                 return { success: true, statusCode: 1, result: true }
             } else {
