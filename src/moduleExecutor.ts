@@ -155,6 +155,14 @@ async function main() {
         wallet.updateProgress(
             `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${wallets[i][2]} address: ${wallet.starknetAddress}`
         )
+        if(!(await wallet.init()).success) {
+            wallet.updateProgress(`something went wrong with getting correct address for wallet: \n${wallets[i][0]}, ${wallets[i][2]}`)
+            wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
+            await wallet.sendProgress()
+            log(c.red(`something went wrong with getting correct address for wallet:`), `\n${wallets[i][0]}, ${wallets[i][2]}`)
+            log(c.red(`this is undefined behavior, please restart the script and contact author`))
+            throw "Something went wrong with getting acc address"
+        }
         await executeModules(wallet)
     }
 }

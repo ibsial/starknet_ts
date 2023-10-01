@@ -46,6 +46,9 @@ import { zkLend } from '../abi/zkLend'
 class StarknetWallet {
     // init Account here
     mnemonic: string
+    index: string
+    groundKey: string
+
     ethProvider: JsonRpcProvider
     ethSigner: Wallet
     modulesCount: any
@@ -77,6 +80,7 @@ class StarknetWallet {
         const masterNode = HDNodeWallet.fromSeed(signer.privateKey)
         const childNode = masterNode.derivePath(`m/44'/9004'/0'/0/${index}`)
         const groundKey = '0x' + ec.starkCurve.grindKey(childNode.privateKey)
+        this.groundKey = groundKey
         const publicKey = ec.starkCurve.getStarkKey(groundKey)
         const constructorCallData = CallData.compile({
             implementation: this.accountClassHash,
@@ -87,12 +91,15 @@ class StarknetWallet {
             })
         })
         let addr = hash.calculateContractAddressFromHash(publicKey, this.argentProxyClassHash, constructorCallData, 0)
+        // log(addr)
         this.ethProvider = new JsonRpcProvider(ethereum.url, 1)
         this.mnemonic = mnemonic
+        this.index = index
         this.ethSigner = new Wallet(evmPrivateKey, this.ethProvider)
         this.starknetKey = groundKey
         this.starknetAddress = getChecksumAddress(addr)
         this.starknetAccount = new Account(this.starkProvider, addr, groundKey)
+
         this.maxModulesCount = RandomHelpers.getRandomIntFromTo(maxCount[0], maxCount[1])
         this.modulesCount = {}
         for (let key in modulesCount) {
@@ -106,6 +113,9 @@ class StarknetWallet {
             }
             return sum
         }
+    }
+    async init(): Promise<ReadResponse> {
+        return await this.findDeployedAddress(this.mnemonic, this.index)
     }
     async bridgeMainnet(): Promise<ActionResult> {
         const bridge = new ethers.Contract(
@@ -194,9 +204,62 @@ class StarknetWallet {
             }
         }
     }
-    async isAccountDeployed(): Promise<ReadResponse> {
+    async findDeployedAddress(mnemonic: string, index: string): Promise<ReadResponse> {
+        const signer = Wallet.fromPhrase(mnemonic)
+        const masterNode = HDNodeWallet.fromSeed(signer.privateKey)
+        const childNode = masterNode.derivePath(`m/44'/9004'/0'/0/${index}`)
+        const groundKey = '0x' + ec.starkCurve.grindKey(childNode.privateKey)
+        const publicKey = ec.starkCurve.getStarkKey(groundKey)
+
+        const constructorCallDataCairo0 = CallData.compile({
+            implementation: this.accountClassHash,
+            selector: hash.getSelectorFromName('initialize'),
+            calldata: CallData.compile({
+                signer: publicKey,
+                guardian: '0'
+            })
+        })
+        const constructorCallDataCairo1 = CallData.compile({
+            owner: publicKey,
+            guardian: '0'
+        })
+        let cairo0Address = hash.calculateContractAddressFromHash(
+            publicKey,
+            this.argentProxyClassHash,
+            constructorCallDataCairo0,
+            0
+        )
+        let cairo1Address = hash.calculateContractAddressFromHash(
+            publicKey,
+            this.argentClassHash_cairo1,
+            constructorCallDataCairo1,
+            0
+        )
+        cairo0Address = getChecksumAddress(cairo0Address)
+        cairo1Address = getChecksumAddress(cairo1Address)
+        let isCairo0Deployed: ReadResponse = await retry(this.isAccountDeployed.bind(this), {}, cairo0Address)
+        // log(isCairo0Deployed)
+        let isCairo1Deployed: ReadResponse = await retry(this.isAccountDeployed.bind(this), {}, cairo1Address)
+        // log(isCairo1Deployed)
+        if (isCairo0Deployed.result) {
+            this.starknetAddress = cairo0Address
+            this.starknetAccount = new Account(this.starkProvider, cairo0Address, groundKey, "0")
+            return { success: true, statusCode: 1, result: cairo0Address }
+        } else if (isCairo1Deployed.result) {
+            this.starknetAddress = cairo1Address
+            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, "1")
+            return { success: true, statusCode: 1, result: cairo1Address }
+        } else {
+            this.starknetAddress = cairo1Address
+            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, "1")
+            return { success: true, statusCode: 1, result: cairo1Address }
+        }
+    }
+    async isAccountDeployed(address?: string): Promise<ReadResponse> {
+        if (!address) address = this.starknetAddress
         try {
-            let nonce: string = await this.starkProvider.getNonceForAddress(this.starknetAddress)
+            let nonce: string = await this.starkProvider.getNonceForAddress(address)
+            log(address, nonce)
             if (nonce != '0x0') {
                 return { success: true, statusCode: 1, result: true }
             } else {
@@ -215,7 +278,6 @@ class StarknetWallet {
             },
             this.starknetAddress
         )
-        log(currentClassHash)
         if (currentClassHash != this.argentClassHash_cairo1) {
             // upgrade
             this.starknetAddress
@@ -231,13 +293,19 @@ class StarknetWallet {
                     log('❌ account upgrade failed')
                     return { success: false, statusCode: 0, transactionHash: '❌ account upgrade failed' }
                 }
-                log(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}`)
-                return { success: true, statusCode: 1, transactionHash: `✅ upgraded to Cairo 1.0 ${this.starknetAddress}` }
+                this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, "1")
+                log(c.green(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}${tx.transaction_hash}`))
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ upgraded to Cairo 1.0 ${this.starknetAddress}`
+                }
             } catch (e: any) {
                 log(e)
                 return { success: false, statusCode: 0, transactionHash: `❌ account upgrade failed` }
             }
         }
+        this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, "1")
         return { success: true, statusCode: 1, transactionHash: `wallet version: Cairo 1.0` }
     }
     /**
@@ -250,23 +318,21 @@ class StarknetWallet {
             maxRetries: 10,
             retryInterval: 5
         })
+        // log(deployed)
         if (deployed.success && deployed.result) {
-            return { success: true, statusCode: 1, transactionHash: `${this.starknetAddress} already deployed` }
+            return await this.upgradeWallet()
+            // return { success: true, statusCode: 1, transactionHash: `${this.starknetAddress} already deployed` }
         }
         let pubKey = ec.starkCurve.getStarkKey(this.starknetKey)
-        let AXproxyConstructorCallData = CallData.compile({
-            implementation: this.accountClassHash,
-            selector: hash.getSelectorFromName('initialize'),
-            calldata: CallData.compile({ signer: pubKey, guardian: '0' })
-        })
+        let AXproxyConstructorCallData = CallData.compile({ owner: pubKey, guardian: '0' })
         const AXcontractAddress = hash.calculateContractAddressFromHash(
             pubKey,
-            this.argentProxyClassHash,
+            this.argentClassHash_cairo1,
             AXproxyConstructorCallData,
             0
         )
         const deployAccountPayload = {
-            classHash: this.argentProxyClassHash,
+            classHash: this.argentClassHash_cairo1,
             constructorCalldata: AXproxyConstructorCallData,
             contractAddress: AXcontractAddress,
             addressSalt: pubKey

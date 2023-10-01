@@ -78,6 +78,14 @@ async function volumeCircle(walletTripples: any[]) {
         let wallet = new progressTracker(walletTripple[0], walletTripple[1], walletTripple[2])
         wallet.updateProgress(`acc: [${index + 1} / ${walletTripples.length}] ${wallet.starknetAddress}`)
         // withdraw from OKX
+        if(!(await wallet.init()).success) {
+            wallet.updateProgress(`something went wrong with getting correct address for wallet: \n${walletTripple[0]}, ${walletTripple[2]}`)
+            wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
+            await wallet.sendProgress()
+            log(c.red(`something went wrong with getting correct address for wallet:`), `\n${walletTripple[0]}, ${walletTripple[2]}`)
+            log(c.red(`this is undefined behavior, please restart the script and contact author`))
+            throw "Something went wrong with getting acc address"
+        }
         await checkGas()
         if (okx_config.need_withdraw) {
             if (okx_config.network == 'eth') {
