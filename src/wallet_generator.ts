@@ -77,7 +77,7 @@ async function generateManyFromMany(phrases: string[]) {
 }
 async function generate(cairoVersion?: number) {
     if(!cairoVersion) cairoVersion = 1
-    let seed = 'forest bounce rotate cake village front song nature color manage eye horse' // your seed
+    let seed = 'any word that is in the dictionary and there are twelve words' // your seed
     let amount = 5 // how many wallets we generate
     let startingIndex = 0 // index wich we start from
     await generateManyFromOne(seed, amount, startingIndex, cairoVersion)
