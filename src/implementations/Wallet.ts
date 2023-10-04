@@ -17,7 +17,8 @@ import {
     retry,
     getTxStatus,
     gweiEthProvider,
-    evmTransactionPassed
+    evmTransactionPassed,
+    defaultSleep
 } from './helpers'
 import { erc20_abi } from '../abi/erc20'
 import { ActionResult, Token, Amm, ReadResponse, LpToken } from '../interfaces/Types'
@@ -243,6 +244,7 @@ class StarknetWallet {
         // log(isCairo1Deployed)
         if (isCairo0Deployed.result) {
             this.starknetAddress = cairo0Address
+            // suppose wallet is not upgraded, cairo check will be performed later
             this.starknetAccount = new Account(this.starkProvider, cairo0Address, groundKey, "0")
             return { success: true, statusCode: 1, result: cairo0Address }
         } else if (isCairo1Deployed.result) {
@@ -295,6 +297,7 @@ class StarknetWallet {
                 }
                 this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, "1")
                 log(c.green(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}${tx.transaction_hash}`))
+                await defaultSleep(RandomHelpers.getRandomIntFromTo(10, 30))
                 return {
                     success: true,
                     statusCode: 1,
