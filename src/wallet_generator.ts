@@ -1,6 +1,6 @@
 import { Account, CallData, Provider, SignerInterface, constants, ec, getChecksumAddress, hash } from 'starknet'
 import { Wallet, HDNodeWallet, ethers, toBeArray } from 'ethers'
-import { appendResultsToFile, getDoubles } from './fs_manipulations.js'
+import { appendResultsToFile, getDoubles, importData } from './fs_manipulations.js'
 
 const accountClassHash = '0x033434ad846cdd5f23eb73ff09fe6fddd568284a0fb7d1be20ee482f044dabe2'
 const argentProxyClassHash = '0x25ec026985a3bf9d0cc1fe17326b245dfdc3ff89b8fde106542a3ea56c5a918'
@@ -52,8 +52,7 @@ function generateWalletCairo1(phrase: string, index?: number): string[] {
 }
 
 async function generateManyFromOne(phrase: string, amount: number, start = 0, cairoVer = 1) {
-    let date = Date.now()
-    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,address,key`)
+    // appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,address,key`)
     for (let i = 0; i < amount; i++) {
         let keyPair
         if (cairoVer == 0) {
@@ -77,11 +76,15 @@ async function generateManyFromMany(phrases: string[]) {
 }
 async function generate(cairoVersion?: number) {
     if(!cairoVersion) cairoVersion = 1
-    let seed = 'any word that is in the dictionary and there are twelve words' // your seed
-    let amount = 5 // how many wallets we generate
-    let startingIndex = 0 // index wich we start from
-    await generateManyFromOne(seed, amount, startingIndex, cairoVersion)
+    // let seed = 'any word that is in the dictionary and there are twelve words' // your seed
+    let seeds = await getDoubles()
+    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,key,address`)
+    for (let i = 0; i < seeds!.length; i++) {
+    let amount = 1 // how many wallets we generate
+    let startingIndex = 0 // index wich we start from 
+    await generateManyFromOne(seeds![i][0], amount, startingIndex, cairoVersion)}
 }
 let cairoVersion = 1 // выберите версию каиро: 0 или 1
 generate(cairoVersion)
+let date = Date.now()
 export { generateManyFromMany, generateManyFromOne }
