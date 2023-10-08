@@ -765,11 +765,11 @@ class StarknetWallet {
                 }
                 return { success: true, statusCode: 1, transactionHash: '✅ dmail sent successfully' }
             } catch (e) {
-                log(e)
+                // log(e)
                 return { success: false, statusCode: 0, transactionHash: '❌ dmail send failed' }
             }
         }
-        return await retry(mintResult, {})
+        return await retry(mintResult, {maxRetries:30, retryInterval: 1})
     }
     /**
      * retriable
