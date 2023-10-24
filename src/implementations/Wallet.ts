@@ -6,6 +6,7 @@ import {
     action_sleep_interval,
     wallet_sleep_interval,
     modulesCount,
+    circle_config,
     maxCount
 } from '../../config'
 import {
@@ -54,6 +55,9 @@ class StarknetWallet {
     ethSigner: Wallet
     modulesCount: any
     maxModulesCount: number
+    volumeModulesCount: any
+    volumeMaxModulesCount: number
+
     starkProvider = new SequencerProvider({
         baseUrl: constants.BaseUrl.SN_MAIN
     })
@@ -114,6 +118,22 @@ class StarknetWallet {
             }
             return sum
         }
+        this.volumeModulesCount = {
+            dex: RandomHelpers.getRandomIntFromTo(circle_config.dex_count[0], circle_config.dex_count[1]),
+            zklend: RandomHelpers.getRandomIntFromTo(circle_config.zklend_count[0], circle_config.zklend_count[1])
+        }
+        this.volumeModulesCount.sum = () => {
+            let sum = 0
+            for (let key in this.volumeModulesCount) {
+                if (key == 'sum') continue
+                sum += this.modulesCount[key]
+            }
+            return sum
+        }
+        this.volumeMaxModulesCount = RandomHelpers.getRandomIntFromTo(
+            circle_config.circles_count[0],
+            circle_config.circles_count[1]
+        )
     }
     async init(): Promise<ReadResponse> {
         return await this.findDeployedAddress(this.mnemonic, this.index)
@@ -143,7 +163,7 @@ class StarknetWallet {
                 value: BigInt(res.overall_fee) + 1000000n
             })
             price = (await this.ethProvider.getFeeData()).gasPrice
-            log('send eth to starknet cost:~', formatEther(estimate * price * 13n), 'ETH')
+            log('send eth to starknet cost:~', formatEther((estimate * price * 13n) / 10n), 'ETH')
         } catch (e: any) {
             log(c.red('error:', e.code))
             if (e.code == 'INSUFFICIENT_FUNDS') {
@@ -245,15 +265,15 @@ class StarknetWallet {
         if (isCairo0Deployed.result) {
             this.starknetAddress = cairo0Address
             // suppose wallet is not upgraded, cairo check will be performed later
-            this.starknetAccount = new Account(this.starkProvider, cairo0Address, groundKey, "0")
+            this.starknetAccount = new Account(this.starkProvider, cairo0Address, groundKey, '0')
             return { success: true, statusCode: 1, result: cairo0Address }
         } else if (isCairo1Deployed.result) {
             this.starknetAddress = cairo1Address
-            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, "1")
+            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, '1')
             return { success: true, statusCode: 1, result: cairo1Address }
         } else {
             this.starknetAddress = cairo1Address
-            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, "1")
+            this.starknetAccount = new Account(this.starkProvider, cairo1Address, groundKey, '1')
             return { success: true, statusCode: 1, result: cairo1Address }
         }
     }
@@ -295,7 +315,7 @@ class StarknetWallet {
                     log('❌ account upgrade failed')
                     return { success: false, statusCode: 0, transactionHash: '❌ account upgrade failed' }
                 }
-                this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, "1")
+                this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, '1')
                 log(c.green(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}${tx.transaction_hash}`))
                 await defaultSleep(RandomHelpers.getRandomIntFromTo(10, 30))
                 return {
@@ -308,7 +328,7 @@ class StarknetWallet {
                 return { success: false, statusCode: 0, transactionHash: `❌ account upgrade failed` }
             }
         }
-        this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, "1")
+        this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, '1')
         return { success: true, statusCode: 1, transactionHash: `wallet version: Cairo 1.0` }
     }
     /**
@@ -442,7 +462,7 @@ class StarknetWallet {
         let balance: bigint
         try {
             let tokenContract: Contract = new Contract(erc20_abi, token.address, this.starkProvider)
-            balance = (await retry(tokenContract.balanceOf, {}, this.starknetAddress)).balance.low
+            balance = (await retry(tokenContract.balanceOf, { maxRetries: 30 }, this.starknetAddress)).balance.low
             // log(this.starknetAddress)
             return { success: true, statusCode: 1, result: balance }
         } catch (e) {
@@ -650,7 +670,7 @@ class StarknetWallet {
      * @param tokenIn
      * @param tokenOut
      * @param amountIn
-     * @returns
+     * @returns Promise<ActionResult>
      */
     async swapAvnu(tokenIn: Token, tokenOut: Token, amountIn: bigint): Promise<ActionResult> {
         let amountInHex: string = '0x' + amountIn.toString(16)
@@ -701,6 +721,123 @@ class StarknetWallet {
             log(e)
             return { success: false, statusCode: 0, transactionHash: '❌send avnu tx failed' }
         }
+    }
+    /**
+     * retied but untested zklend feature
+     * @returns Promise<ActionResult>
+     */
+    async depositZklend(): Promise<ActionResult> {
+        let depositPercent: bigint = RandomHelpers.getRandomBnFromTo(
+            circle_config.zklend_percent[0],
+            circle_config.zklend_percent[1]
+        )
+        let balance: bigint = (await this.getBalance(starkTokens['ETH'])).result
+        if (balance <= 0n) {
+            return { success: false, statusCode: -1, transactionHash: '❌ zklend failed, no ETH on acc or RPC is dead' }
+        }
+        let depositAmount: bigint = (balance * depositPercent) / 100n
+        const ethContract = new Contract(erc20_abi, starkTokens['ETH'].address, this.starkProvider)
+        const zklendContract = new Contract(zkLend.abi, zkLend.address, this.starkProvider)
+        const depositResult = async () => {
+            try {
+                const approveCallData: Call = ethContract.populate('approve', [
+                    zkLend.address,
+                    uint256.bnToUint256(depositAmount)
+                ])
+                const depositCallData: Call = zklendContract.populate('deposit', [
+                    starkTokens['ETH'].address,
+                    uint256.bnToUint256(depositAmount)
+                ])
+                const enableCollateral: Call = zklendContract.populate('enable_collateral', [
+                    starkTokens['ETH'].address
+                ])
+                const multicall: any = await this.starknetAccount.execute([
+                    approveCallData,
+                    depositCallData,
+                    enableCollateral
+                ])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ deposit ZkLend tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ deposit ZkLend tx rejected' }
+                }
+                log(
+                    `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        depositAmount,
+                        starkTokens['ETH'].decimals
+                    )} ETH at ZkLend`
+                )
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        depositAmount,
+                        starkTokens['ETH'].decimals
+                    )} ETH at ZkLend`
+                }
+            } catch (e) {
+                // log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ deposit ZkLend failed' }
+            }
+        }
+        return await retry(depositResult, {})
+    }
+    /**
+     * retied but untested zklend feature
+     * @returns Promise<ActionResult>
+     */
+    async withdrawZklend(): Promise<ActionResult> {
+        let zEth = {
+            name: 'ETH',
+            address: '0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+            decimals: 18n,
+            abi: erc20_abi
+        } as Token
+        const zklendContract = new Contract(zkLend.abi, zkLend.address, this.starkProvider)
+        let balanceBefore: bigint = (await this.getBalance(starkTokens['ETH'])).result
+        let balance: bigint = (await this.getBalance(zEth)).result
+        if (balance <= 0n) {
+            return { success: false, statusCode: -1, transactionHash: '❌ zklend failed, no ETH on acc or RPC is dead' }
+        }
+        /**
+         * retied but untested zklend feature
+         * @returns Promise<ActionResult>
+         */
+        const withdrawResult = async () => {
+            try {
+                const withdrawCalldata: Call = zklendContract.populate('withdraw', [
+                    starkTokens['ETH'].address,
+                    uint256.bnToUint256(balance)
+                ])
+                const multicall: any = await this.starknetAccount.execute([withdrawCalldata])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ withdraw ZkLend tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ deposit ZkLend tx rejected' }
+                }
+                let balanceAfter: bigint = (await this.getBalance(starkTokens['ETH'])).result
+                log(
+                    `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        balanceAfter - balanceBefore,
+                        starkTokens['ETH'].decimals
+                    )} ETH from ZkLend`
+                )
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        balanceAfter - balanceBefore,
+                        starkTokens['ETH'].decimals
+                    )} ETH from ZkLend`
+                }
+            } catch (e) {
+                // log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ withdraw from ZkLend failed' }
+            }
+        }
+        return await retry(withdrawResult, {})
     }
     /**
      * retriable mint starknet id function
@@ -769,7 +906,7 @@ class StarknetWallet {
                 return { success: false, statusCode: 0, transactionHash: '❌ dmail send failed' }
             }
         }
-        return await retry(mintResult, {maxRetries:30, retryInterval: 1})
+        return await retry(mintResult, { maxRetries: 30, retryInterval: 1 })
     }
     /**
      * retriable
