@@ -678,7 +678,14 @@ class StarknetWallet {
         let buyAmount: string
         try {
             let req: any = await axios.get(
-                `https://starknet.api.avnu.fi/swap/v1/quotes?sellTokenAddress=${tokenIn.address}&buyTokenAddress=${tokenOut.address}&sellAmount=${amountInHex}&size=1&integratorName=AVNU%20Portal`
+                `https://starknet.api.avnu.fi/swap/v1/quotes?sellTokenAddress=${tokenIn.address}&buyTokenAddress=${tokenOut.address}&sellAmount=${amountInHex}&size=1&excludeSources=Ekubo&excludeSources=SithSwap&integratorName=AVNU%20Portal`,
+                {
+                    headers: {
+                        'Origin': 'https://app.avnu.fi',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+                        
+                    }
+                }
             )
             reqId = req.data[0].quoteId
             buyAmount = req.data[0].buyAmount
