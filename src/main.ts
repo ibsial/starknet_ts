@@ -74,9 +74,9 @@ async function executeRandomCheapModule(wallet: progressTracker) {
 }
 async function executeRandomVolumeModule(wallet: progressTracker, index: number, fromTokenName: any): Promise<void> {
     if (wallet.volumeModulesCount.sum() > 0) {
-        let module = RandomHelpers.chooseKeyFromStruct(wallet.modulesCount, 'sum')
+        let module = RandomHelpers.chooseKeyFromStruct(wallet.volumeModulesCount, 'sum')
         while (wallet.volumeModulesCount[module] <= 0) {
-            module = RandomHelpers.chooseKeyFromStruct(wallet.modulesCount, 'sum')
+            module = RandomHelpers.chooseKeyFromStruct(wallet.volumeModulesCount, 'sum')
         }
         await checkGas()
         log(`selected module: ${module}`)
@@ -98,6 +98,16 @@ async function executeRandomVolumeModule(wallet: progressTracker, index: number,
                     RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]) / 2
                 )
                 res = await wallet.withdrawZklend()
+                wallet.updateProgress(res.transactionHash)
+                wallet.volumeModulesCount[module] -= 1
+                break
+            case 'nostra':
+                res = await wallet.depositNostra()
+                wallet.updateProgress(res.transactionHash)
+                await defaultSleep(
+                    RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]) / 2
+                )
+                res = await wallet.withdrawNostra()
                 wallet.updateProgress(res.transactionHash)
                 wallet.volumeModulesCount[module] -= 1
                 break
@@ -437,7 +447,7 @@ async function volumeCircle(walletTripples: any[]) {
         }
         wallet.updateProgress(deployRes.transactionHash)
 
-        if (RandomHelpers.getRandomInt(3) == 2) {
+        if (RandomHelpers.getRandomInt(6) == 2) {
             await executeRandomCheapModule(wallet)
         }
         // set random amount of circles

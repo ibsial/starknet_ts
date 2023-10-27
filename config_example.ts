@@ -44,7 +44,10 @@ export const circle_config = {
     // circle:
     // eth -rand_dex-> token -rand_dex-> add lp -->
     // --> remove LP -rand_dex-> new token -->...
-    circles_count: [1, 2],
+    circles_count: [1, 3],
+    dex_count: [0,1], // Сколько делаем кругов со свапами
+    zklend_count: [2,2], // Сколько делаем кругов zklend
+    nostra_count: [2,2], // Сколько делаем кругов nostra
     tokens: [
         'USDC',
         'USDT',
@@ -53,7 +56,8 @@ export const circle_config = {
     dex: [
         'jediswap',
         'tenKSwap',
-        'avnu',
+        // 'avnu',
+
         // 'myswap', // пока что нет
     ],
     // какую долю эфира свапаем в процессе. Не забываете n в конце чисел

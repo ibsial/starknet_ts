@@ -55,6 +55,11 @@ async function generateManyFromOne(phrase: string, amount: number, start = 0, ca
     // appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,address,key`)
     for (let i = 0; i < amount; i++) {
         let keyPair
+        // let signer = Wallet.fromPhrase(phrase)
+        // let masterNode = ethers.HDNodeWallet.fromPhrase(phrase)
+        let wallet = HDNodeWallet.fromPhrase(phrase, "", `m/44'/60'/0'/0/${i}`)
+        let ethAddress = wallet.address
+        let ethPrivate = wallet.privateKey
         if (cairoVer == 0) {
             keyPair = generateWalletCairo0(phrase, start + i)
         } else {
@@ -62,29 +67,52 @@ async function generateManyFromOne(phrase: string, amount: number, start = 0, ca
         }
         keyPair[2] = getChecksumAddress(keyPair[2])
         let pasta = keyPair.toString()
+        pasta += ',' + ethAddress + ',' + ethPrivate
         appendResultsToFile(`starknet_wallets_${date}.csv`, pasta!)
     }
 }
-async function generateManyFromMany(phrases: string[]) {
-    let date = Date.now()
-    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,key,address`)
-    for (let phrase of phrases) {
-        let keyPair = generateWalletCairo0(phrase)
-        let pasta = keyPair.toString()
-        appendResultsToFile(`starknet_wallets_${date}.csv`, pasta!)
-    }
-}
-async function generate(cairoVersion?: number) {
-    if(!cairoVersion) cairoVersion = 1
+
+async function restore(cairoVersion?: number, amount = 1) {
+    if (!cairoVersion) cairoVersion = 1
     // let seed = 'any word that is in the dictionary and there are twelve words' // your seed
     let seeds = await getDoubles()
-    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,key,address`)
+    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,stark_address,stark_key,eth_address,eth_key`)
     for (let i = 0; i < seeds!.length; i++) {
-    let amount = 1 // how many wallets we generate
-    let startingIndex = 0 // index wich we start from 
-    await generateManyFromOne(seeds![i][0], amount, startingIndex, cairoVersion)}
+        let startingIndex = 0 // index wich we start from
+        await generateManyFromOne(seeds![i][0], amount, startingIndex, cairoVersion)
+    }
 }
-let cairoVersion = 1 // выберите версию каиро: 0 или 1
-generate(cairoVersion)
-let date = Date.now()
-export { generateManyFromMany, generateManyFromOne }
+async function generate(cairoVersion?: number, seedAmount = 1, walletPerSeedAmount = 1) {
+    if (cairoVersion === undefined) cairoVersion = 1
+    appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,stark_address,stark_key,eth_address,eth_key`)
+    for (let i = 0; i < seedAmount; i++) {
+        let wallet = ethers.Wallet.createRandom()
+        let seed = wallet.mnemonic?.phrase
+        await generateManyFromOne(seed!, walletPerSeedAmount, 0, cairoVersion)
+    }
+}
+
+let date: Date | string = new Date(Date.now())
+date = date.toISOString()
+date = date.replace(new RegExp(':', 'g'), '-')
+date = date.replace('.', '-')
+console.log(date)
+async function main() {
+    let args = process.argv.slice(2)
+    let script = args[0]
+    let seedAmount = parseInt(args[1])
+    let walletPerSeedAmount = 1
+    if (args[2] !== undefined) {
+        walletPerSeedAmount = parseInt(args[2])
+    }
+    let cairoVersion = 1 // выберите версию каиро: 0 или 1
+    switch (script) {
+        case 'generate':
+            return await generate(cairoVersion, seedAmount, walletPerSeedAmount)
+        case 'restore':
+            return await restore(cairoVersion, walletPerSeedAmount)
+    }
+}
+main()
+
+export { generateManyFromOne }

@@ -45,6 +45,8 @@ import { dmail } from '../abi/dmail'
 import { starkTokens } from '../data/tokens'
 import { unframed } from '../abi/unframed'
 import { zkLend } from '../abi/zkLend'
+import { nostra } from '../abi/nostra'
+
 class StarknetWallet {
     // init Account here
     mnemonic: string
@@ -120,13 +122,14 @@ class StarknetWallet {
         }
         this.volumeModulesCount = {
             dex: RandomHelpers.getRandomIntFromTo(circle_config.dex_count[0], circle_config.dex_count[1]),
-            zklend: RandomHelpers.getRandomIntFromTo(circle_config.zklend_count[0], circle_config.zklend_count[1])
+            zklend: RandomHelpers.getRandomIntFromTo(circle_config.zklend_count[0], circle_config.zklend_count[1]),
+            nostra: RandomHelpers.getRandomIntFromTo(circle_config.nostra_count[0], circle_config.nostra_count[1])
         }
         this.volumeModulesCount.sum = () => {
             let sum = 0
             for (let key in this.volumeModulesCount) {
                 if (key == 'sum') continue
-                sum += this.modulesCount[key]
+                sum += this.volumeModulesCount[key]
             }
             return sum
         }
@@ -681,9 +684,9 @@ class StarknetWallet {
                 `https://starknet.api.avnu.fi/swap/v1/quotes?sellTokenAddress=${tokenIn.address}&buyTokenAddress=${tokenOut.address}&sellAmount=${amountInHex}&size=1&excludeSources=Ekubo&excludeSources=SithSwap&integratorName=AVNU%20Portal`,
                 {
                     headers: {
-                        'Origin': 'https://app.avnu.fi',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-                        
+                        Origin: 'https://app.avnu.fi',
+                        'User-Agent':
+                            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
                     }
                 }
             )
@@ -735,8 +738,8 @@ class StarknetWallet {
      */
     async depositZklend(): Promise<ActionResult> {
         let depositPercent: bigint = RandomHelpers.getRandomBnFromTo(
-            circle_config.zklend_percent[0],
-            circle_config.zklend_percent[1]
+            circle_config.lend_percent[0],
+            circle_config.lend_percent[1]
         )
         let balance: bigint = (await this.getBalance(starkTokens['ETH'])).result
         if (balance <= 0n) {
@@ -753,7 +756,7 @@ class StarknetWallet {
                 ])
                 const depositCallData: Call = zklendContract.populate('deposit', [
                     starkTokens['ETH'].address,
-                    uint256.bnToUint256(depositAmount)
+                    uint256.bnToUint256(depositAmount).low
                 ])
                 const enableCollateral: Call = zklendContract.populate('enable_collateral', [
                     starkTokens['ETH'].address
@@ -773,7 +776,7 @@ class StarknetWallet {
                     `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
                         depositAmount,
                         starkTokens['ETH'].decimals
-                    )} ETH at ZkLend`
+                    )} ETH to ZkLend`
                 )
                 return {
                     success: true,
@@ -781,10 +784,10 @@ class StarknetWallet {
                     transactionHash: `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
                         depositAmount,
                         starkTokens['ETH'].decimals
-                    )} ETH at ZkLend`
+                    )} ETH to ZkLend`
                 }
             } catch (e) {
-                // log(e)
+                log(e)
                 return { success: false, statusCode: 0, transactionHash: '❌ deposit ZkLend failed' }
             }
         }
@@ -796,7 +799,7 @@ class StarknetWallet {
      */
     async withdrawZklend(): Promise<ActionResult> {
         let zEth = {
-            name: 'ETH',
+            name: 'zETH',
             address: '0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
             decimals: 18n,
             abi: erc20_abi
@@ -813,9 +816,8 @@ class StarknetWallet {
          */
         const withdrawResult = async () => {
             try {
-                const withdrawCalldata: Call = zklendContract.populate('withdraw', [
+                const withdrawCalldata: Call = zklendContract.populate('withdraw_all', [
                     starkTokens['ETH'].address,
-                    uint256.bnToUint256(balance)
                 ])
                 const multicall: any = await this.starknetAccount.execute([withdrawCalldata])
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
@@ -840,8 +842,128 @@ class StarknetWallet {
                     )} ETH from ZkLend`
                 }
             } catch (e) {
-                // log(e)
+                log(e)
                 return { success: false, statusCode: 0, transactionHash: '❌ withdraw from ZkLend failed' }
+            }
+        }
+        return await retry(withdrawResult, {})
+    }
+    /**
+     * retied but untested nostra feature
+     * @returns Promise<ActionResult>
+     */
+    async depositNostra(): Promise<ActionResult> {
+        let depositPercent: bigint = RandomHelpers.getRandomBnFromTo(
+            circle_config.lend_percent[0],
+            circle_config.lend_percent[1]
+        )
+        let balance: bigint = (await this.getBalance(starkTokens['ETH'])).result
+        if (balance <= 0n) {
+            return { success: false, statusCode: -1, transactionHash: '❌ zklend failed, no ETH on acc or RPC is dead' }
+        }
+        let depositAmount: bigint = (balance * depositPercent) / 100n
+        const ethContract = new Contract(erc20_abi, starkTokens['ETH'].address, this.starkProvider)
+        const nostraContract = new Contract(nostra.abi, nostra.address, this.starkProvider)
+        const depositResult = async () => {
+            try {
+                const approveCallData: Call = ethContract.populate('approve', [
+                    nostraContract.address,
+                    uint256.bnToUint256(depositAmount)
+                ])
+                const depositCallData: Call = nostraContract.populate('mint', [
+                    this.starknetAddress,
+                    uint256.bnToUint256(depositAmount)
+                ])
+                const multicall: any = await this.starknetAccount.execute([approveCallData, depositCallData])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ deposit Nostra tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ deposit Nostra tx rejected' }
+                }
+                log(
+                    `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        depositAmount,
+                        starkTokens['ETH'].decimals
+                    )} ETH to Nostra`
+                )
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ deposited [${depositPercent}%/100%] | ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        depositAmount,
+                        starkTokens['ETH'].decimals
+                    )} ETH to Nostra`
+                }
+            } catch (e) {
+                // log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ deposit Nostra failed' }
+            }
+        }
+        return await retry(depositResult, {})
+    }
+    /**
+     * retied but untested nostra feature
+     * @returns Promise<ActionResult>
+     */
+    async withdrawNostra(): Promise<ActionResult> {
+        let ibEth = {
+            name: 'ibETH',
+            address: '0x49d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+            decimals: 18n,
+            abi: erc20_abi
+        } as Token
+        const nostraContract = new Contract(nostra.abi, nostra.address, this.starkProvider)
+        let balanceBefore: bigint = (await this.getBalance(starkTokens['ETH'])).result
+        //////////////////////////////////
+        // is this correct?
+        //////////////////////////////////
+        // let balance: bigint = (await this.getBalance(ibEth)).result
+        const getUnderlying = async () => {
+            let balance = await nostraContract.scaledBalanceOf(this.starknetAddress)
+            return balance.balance.low
+        }
+        let balance = await retry(getUnderlying.bind(this), {maxRetries: 30})
+        log(balance)
+        if (balance <= 0n) {
+            return { success: false, statusCode: -1, transactionHash: '❌ nostra failed, no ETH on acc or RPC is dead' }
+        }
+        /**
+         * retied but untested zklend feature
+         * @returns Promise<ActionResult>
+         */
+        const withdrawResult = async () => {
+            try {
+                const withdrawCalldata: Call = nostraContract.populate('burn', [
+                    this.starknetAddress, //from
+                    this.starknetAddress, //to
+                    uint256.bnToUint256(balance) // amount
+                ])
+                const multicall: any = await this.starknetAccount.execute([withdrawCalldata])
+                log(c.green(starknet.explorer.tx + multicall.transaction_hash))
+                let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
+                if (!txPassed.success) {
+                    log('❌ withdraw Nostra tx rejected')
+                    return { success: false, statusCode: 0, transactionHash: '❌ withdraw Nostra tx rejected' }
+                }
+                let balanceAfter: bigint = (await this.getBalance(starkTokens['ETH'])).result
+                log(
+                    `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        balanceAfter - balanceBefore,
+                        starkTokens['ETH'].decimals
+                    )} ETH from Nostra`
+                )
+                return {
+                    success: true,
+                    statusCode: 1,
+                    transactionHash: `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
+                        balanceAfter - balanceBefore,
+                        starkTokens['ETH'].decimals
+                    )} ETH from Nostra`
+                }
+            } catch (e) {
+                log(e)
+                return { success: false, statusCode: 0, transactionHash: '❌ withdraw from Nostra failed' }
             }
         }
         return await retry(withdrawResult, {})
