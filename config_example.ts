@@ -66,6 +66,8 @@ export const circle_config = {
     // сколько оставить в старкнете после вывода на окекс
     amount_to_leave_from: '0.007',
     amount_to_leave_to: '0.009',
+
+    need_deposit: true, // или false
     // Можно разделить отправление на биржу на несколько случайных частей
     // чтобы этого не делать, ставьте [1,1]
     split_transfer: [2, 4],

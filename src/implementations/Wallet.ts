@@ -18,6 +18,7 @@ import {
     retry,
     getTxStatus,
     gweiEthProvider,
+    gweiStarkProvider,
     evmTransactionPassed,
     defaultSleep
 } from './helpers'
@@ -816,9 +817,7 @@ class StarknetWallet {
          */
         const withdrawResult = async () => {
             try {
-                const withdrawCalldata: Call = zklendContract.populate('withdraw_all', [
-                    starkTokens['ETH'].address,
-                ])
+                const withdrawCalldata: Call = zklendContract.populate('withdraw_all', [starkTokens['ETH'].address])
                 const multicall: any = await this.starknetAccount.execute([withdrawCalldata])
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
                 let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
@@ -923,10 +922,10 @@ class StarknetWallet {
             let balance = await nostraContract.scaledBalanceOf(this.starknetAddress)
             return balance.balance.low
         }
-        let balance = await retry(getUnderlying.bind(this), {maxRetries: 30})
-        log(balance)
+        let balance = await retry(getUnderlying.bind(this), { maxRetries: 30 })
+        // log(balance)
         if (balance <= 0n) {
-            return { success: false, statusCode: -1, transactionHash: '❌ nostra failed, no ETH on acc or RPC is dead' }
+            return { success: false, statusCode: -1, transactionHash: '❌ nostra failed, no ibETH on acc' }
         }
         /**
          * retied but untested zklend feature
@@ -1016,7 +1015,13 @@ class StarknetWallet {
     }
     async sendDmail(): Promise<ActionResult> {
         const dmailContract: Contract = new Contract(dmail.abi, dmail.address, this.starkProvider)
-        const mintResult = async () => {
+        const mintResult = async (retries = 0): Promise<any> => {
+            let maxRetries = 30
+            if (retries >= maxRetries) {
+                log('❌ dmail failed')
+                return { success: false, statusCode: 0, transactionHash: '❌ dmail failed' }
+            }
+            retries++
             try {
                 const mint: Call = dmailContract.populate('transaction', [
                     keccak256(ethers.toBeArray(RandomHelpers.getRandomBnFromTo(1000n, 10000000000n))).substring(0, 65),
@@ -1027,15 +1032,15 @@ class StarknetWallet {
                 let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
                 if (!txPassed.success) {
                     log('❌ dmail send tx rejected')
-                    return { success: false, statusCode: 0, transactionHash: '❌ dmail send tx rejected' }
+                    await mintResult(retries)
                 }
                 return { success: true, statusCode: 1, transactionHash: '✅ dmail sent successfully' }
             } catch (e) {
                 // log(e)
-                return { success: false, statusCode: 0, transactionHash: '❌ dmail send failed' }
+                return await mintResult(retries)
             }
         }
-        return await retry(mintResult, { maxRetries: 30, retryInterval: 1 })
+        return await mintResult(0)
     }
     /**
      * retriable
@@ -1184,7 +1189,7 @@ class StarknetWallet {
      * @returns
      */
     async retryGetTxStatus(hash: string, pasta: string): Promise<ActionResult> {
-        return await retry(getTxStatus, { maxRetries: 10 }, this.starkProvider, hash, pasta)
+        return await retry(getTxStatus, { maxRetries: 10 }, this.starknetAccount, hash, pasta)
     }
     /**
      * not retried getRemoveLpAmounts
@@ -1234,35 +1239,26 @@ class StarknetWallet {
         }
         return { success: true, statusCode: 1, result: '' }
     }
-    async checkGas() {
-        while (true) {
-            try {
-                log(await this.starkProvider.getBlock())
-                // let currentGwei = (await gweiEthProvider.getFeeData()).gasPrice
-                // if (currentGwei == null || currentGwei > NumbersHelpers.floatStringToBigInt(good_gwei.toString(), 9n)) {
-                //     await sleep(60, 'wait gas')
-                // } else {
-                //     return
-                // }
-            } catch (e) {
-                log(e)
-            }
-        }
-    }
 }
 // check gas decorator
-async function checkGas() {
-    while (true) {
-        try {
-            let currentGwei = (await gweiEthProvider.getFeeData()).gasPrice
+async function checkGas(): Promise<any> {
+    try {
+        let latestBlock = await gweiStarkProvider.getBlock('latest')
+        let currentGwei = ethers.toBigInt(latestBlock.gas_price as string)
+        log(c.yellow(`wait gwei. Want: ${good_gwei}, have: ${currentGwei}`))
+        while (true) {
+            latestBlock = await gweiStarkProvider.getBlock('latest')
+            currentGwei = ethers.toBigInt(latestBlock.gas_price as string)
             if (currentGwei == null || currentGwei > NumbersHelpers.floatStringToBigInt(good_gwei.toString(), 9n)) {
-                await sleep(60, 'wait gas')
+                await defaultSleep(60)
             } else {
                 return
             }
-        } catch (e) {
-            log(e)
         }
+    } catch (e) {
+        log(e)
+        await defaultSleep(60)
+        return await checkGas()
     }
 }
 

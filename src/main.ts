@@ -467,7 +467,7 @@ async function volumeCircle(walletTripples: any[]) {
         //////////
         await wallet.sendProgress()
         // transfer to OKX
-        if (okx_config.need_withdraw) {
+        if (circle_config.need_deposit) {
             let finalEthBalance = await wallet.getBalance(starkTokens.ETH)
             let amountToLeaveFrom = NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_from, 18n)
             let amountToLeaveTo = NumbersHelpers.floatStringToBigInt(circle_config.amount_to_leave_to, 18n)

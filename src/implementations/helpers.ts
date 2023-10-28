@@ -6,6 +6,7 @@ import c from 'chalk'
 import { ethereum } from '../data/networks'
 import { progressTracker } from './ProgressTracker'
 import { ActionResult, AccData } from '../interfaces/Types'
+import { Account, SequencerProvider, constants } from 'starknet'
 
 const log = console.log
 const timeout = 5 * 60
@@ -208,10 +209,10 @@ function generateRandomText(length: number) {
     message = message + "\n" + ending[Math.floor(Math.random() * ending.length)] + "!" + "\n"
     return message
 }
-async function getTxStatus(provider: any, hash: string, pasta: string): Promise<ActionResult> {
+async function getTxStatus(account: Account, hash: string, pasta: string): Promise<ActionResult> {
     try {
-        const status: any = await provider.waitForTransaction(hash)
-        if (status == undefined || status == 'REJECTED') {
+        const status: any = (await account.getTransactionReceipt(hash)).status
+        if (status == undefined || status == 'REJECTED' || status == 'REVERTED') {
             return { success: false, statusCode: 0, transactionHash: 'tx rejected' }
         }
         return { success: true, statusCode: 1, transactionHash: pasta }
@@ -307,6 +308,9 @@ const retry = async (
     return await retry(fn, { retries: tries, retryInterval, maxRetries, backoff }, ...args)
 }
 const gweiEthProvider = new JsonRpcProvider(ethereum.url)
+const gweiStarkProvider = new SequencerProvider({
+    baseUrl: constants.BaseUrl.SN_MAIN
+})
 
 export {
     log,
@@ -321,6 +325,7 @@ export {
     defaultSleep,
     getTxStatus,
     gweiEthProvider,
+    gweiStarkProvider,
     evmTransactionPassed,
     generateEmailAddress,
     generateRandomText

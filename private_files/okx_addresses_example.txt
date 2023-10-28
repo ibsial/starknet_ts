@@ -1,4 +1,4 @@
-okx_address_1
-okx_address_2
+starknet_okx_address_1
+starknet_okx_address_2
 ...
 если зададите 30 мнемоников и 10 адресов окекс, они будут крутиться по кругу
