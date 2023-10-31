@@ -907,7 +907,6 @@ class StarknetWallet {
             abi: erc20_abi
         } as Token
         const nostraContract = new Contract(nostra.abi, nostra.address, this.starkProvider)
-        let balanceBefore: bigint = (await this.getBalance(starkTokens['ETH'])).result
         //////////////////////////////////
         // is this correct?
         //////////////////////////////////
@@ -939,10 +938,9 @@ class StarknetWallet {
                     log('❌ withdraw Nostra tx rejected')
                     return { success: false, statusCode: 0, transactionHash: '❌ withdraw Nostra tx rejected' }
                 }
-                let balanceAfter: bigint = (await this.getBalance(starkTokens['ETH'])).result
                 log(
                     `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
-                        balanceAfter - balanceBefore,
+                        balance,
                         starkTokens['ETH'].decimals
                     )} ETH from Nostra`
                 )
@@ -950,7 +948,7 @@ class StarknetWallet {
                     success: true,
                     statusCode: 1,
                     transactionHash: `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
-                        balanceAfter - balanceBefore,
+                        balance,
                         starkTokens['ETH'].decimals
                     )} ETH from Nostra`
                 }
