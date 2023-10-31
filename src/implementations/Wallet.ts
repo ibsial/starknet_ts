@@ -1238,7 +1238,7 @@ async function checkGas(): Promise<any> {
         let latestBlock = await gweiStarkProvider.getBlock('latest')
         let currentGwei = ethers.toBigInt(latestBlock.gas_price as string)
         if (currentGwei > NumbersHelpers.floatStringToBigInt(good_gwei.toString(), 9n)) {
-            log(c.yellow(`wait gwei. Want: ${good_gwei}, have: ${Number(currentGwei) / Number(10n ** 9n)}`))
+            log(c.yellow(`wait gwei. Want: ${good_gwei}, have: ${Number(currentGwei) / Number(10n ** 9n)} | ${new Date()}`))
             while (true) {
                 latestBlock = await gweiStarkProvider.getBlock('latest')
                 currentGwei = ethers.toBigInt(latestBlock.gas_price as string)

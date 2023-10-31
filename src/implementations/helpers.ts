@@ -211,7 +211,7 @@ function generateRandomText(length: number) {
 }
 async function getTxStatus(account: Account, hash: string, pasta: string): Promise<ActionResult> {
     try {
-        const status: any = (await account.getTransactionReceipt(hash))
+        const status: any = (await account.getTransactionReceipt(hash)).status
         // log(status)
         if (status == undefined || status == 'NOT_RECEIVED' || status == 'REJECTED' || status == 'REVERTED') {
             return { success: false, statusCode: 0, transactionHash: 'tx rejected' }
