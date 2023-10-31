@@ -827,18 +827,12 @@ class StarknetWallet {
                 }
                 let balanceAfter: bigint = (await this.getBalance(starkTokens['ETH'])).result
                 log(
-                    `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
-                        balanceAfter - balanceBefore,
-                        starkTokens['ETH'].decimals
-                    )} ETH from ZkLend`
+                    `✅ withdrew all ETH from ZkLend`
                 )
                 return {
                     success: true,
                     statusCode: 1,
-                    transactionHash: `✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(
-                        balanceAfter - balanceBefore,
-                        starkTokens['ETH'].decimals
-                    )} ETH from ZkLend`
+                    transactionHash: `✅  withdrew all ETH from ZkLend`
                 }
             } catch (e) {
                 log(e)

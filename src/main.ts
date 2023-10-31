@@ -456,7 +456,7 @@ async function volumeCircle(walletTripples: any[]) {
         //     circle_config.circles_count[1]
         // )
         let circleAmount: number = wallet.volumeMaxModulesCount
-        log(c.bold('circles to perform:'), c.magenta(circleAmount))
+        log(c.bold(c.magenta('circles to perform:', circleAmount)))
         let fromTokenName: string = 'ETH'
         // fromToken = starkTokens['ETH']
         ////////////////////

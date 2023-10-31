@@ -5,6 +5,7 @@ import * as stream from 'stream'
 import { once } from 'events'
 import { Mnemonic } from 'ethers'
 import { log, c, RandomHelpers, sleep } from './implementations/helpers'
+import { circle_config, okx_config } from '../config'
 
 // const __dirname = path.resolve(),
 
@@ -83,6 +84,10 @@ export const assembleAndRandomizeData = async () => {
     ])
     // log(doubles, ethPrivates, okxAddresses)
     // check okx addresses validity
+    if(circle_config.need_deposit && okxAddresses.length == 0) {
+        log(c.red('did you forget to paste OKX addresses?'))
+        throw Error("no OKX address")
+    }
     for (let acc of okxAddresses) {
         if (acc.length != 66 && acc.length != 64) {
             log(c.red('invalid OKX address!'))
