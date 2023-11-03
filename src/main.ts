@@ -94,7 +94,7 @@ async function executeRandomVolumeModule(wallet: progressTracker, index: number,
             case 'zklend':
                 res = await wallet.depositZklend()
                 wallet.updateProgress(res.transactionHash)
-                if (RandomHelpers.getRandomInt(3) == 2) {
+                if (RandomHelpers.getRandomInt(3) >= 1) {
                     await executeRandomCheapModule(wallet)
                     await defaultSleep(
                         RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1])
@@ -110,7 +110,7 @@ async function executeRandomVolumeModule(wallet: progressTracker, index: number,
             case 'nostra':
                 res = await wallet.depositNostra()
                 wallet.updateProgress(res.transactionHash)
-                if (RandomHelpers.getRandomInt(3) == 2) {
+                if (RandomHelpers.getRandomInt(3) >= 1) {
                     await executeRandomCheapModule(wallet)
                     await defaultSleep(
                         RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1])
