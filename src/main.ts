@@ -94,6 +94,12 @@ async function executeRandomVolumeModule(wallet: progressTracker, index: number,
             case 'zklend':
                 res = await wallet.depositZklend()
                 wallet.updateProgress(res.transactionHash)
+                if (RandomHelpers.getRandomInt(3) == 2) {
+                    await executeRandomCheapModule(wallet)
+                    await defaultSleep(
+                        RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1])
+                    )
+                }
                 await defaultSleep(
                     RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]) / 2
                 )
@@ -104,6 +110,12 @@ async function executeRandomVolumeModule(wallet: progressTracker, index: number,
             case 'nostra':
                 res = await wallet.depositNostra()
                 wallet.updateProgress(res.transactionHash)
+                if (RandomHelpers.getRandomInt(3) == 2) {
+                    await executeRandomCheapModule(wallet)
+                    await defaultSleep(
+                        RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1])
+                    )
+                }
                 await defaultSleep(
                     RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]) / 2
                 )
@@ -323,7 +335,6 @@ async function volumeCircle(walletTripples: any[]) {
     for (let [index, walletTripple] of walletTripples.entries()) {
         let exch = new Okex()
         let wallet = new progressTracker(walletTripple[0], walletTripple[1], walletTripple[2])
-        wallet.updateProgress(`acc: [${index + 1} / ${walletTripples.length}] ${wallet.starknetAddress}`)
         // withdraw from OKX
         if (!(await wallet.init()).success) {
             wallet.updateProgress(
@@ -338,6 +349,7 @@ async function volumeCircle(walletTripples: any[]) {
             log(c.red(`this is undefined behavior, please restart the script and contact author`))
             throw 'Something went wrong with getting acc address'
         }
+        wallet.updateProgress(`acc: [${index + 1} / ${walletTripples.length}] ${wallet.starknetAddress}`)
         await checkGas()
         if (okx_config.need_withdraw) {
             if (okx_config.network == 'eth') {

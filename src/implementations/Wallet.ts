@@ -912,7 +912,7 @@ class StarknetWallet {
         //////////////////////////////////
         // let balance: bigint = (await this.getBalance(ibEth)).result
         const getUnderlying = async () => {
-            let balance = await nostraContract.scaledBalanceOf(this.starknetAddress)
+            let balance = await nostraContract.balanceOf(this.starknetAddress)
             return balance.balance.low
         }
         let balance = await retry(getUnderlying.bind(this), { maxRetries: 30 })
