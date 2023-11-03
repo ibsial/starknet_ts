@@ -107,6 +107,7 @@ class Okex {
                         password: okx_config.password
                     })
                 }
+                log(c.green(`withdrew ${value} ETH from Okx to Ethereum mainnet`))
                 return true
             } catch (e) {
                 log(e)
@@ -128,6 +129,7 @@ class Okex {
                         network: 'Starknet',
                         password: okx_config.password
                     })
+                    log(c.green(`withdrew ${value} ETH from Okx to Starknet`))
                 return true
             } catch (e) {
                 log(e)
