@@ -178,7 +178,13 @@ class Okex {
             )
         }
     }
-}
+    async checkSubAndTransfer(): Promise<void> {
+        let nonzeroAccs: AccData[] = await this.getNonZeroSubacc()
+        while (nonzeroAccs.length == 0) {
+
+        }
+    }
+} 
 function removeElementFromArray(arr: any[], element: any): void {
     const index = arr.indexOf(element)
     if (index > -1) {
@@ -217,7 +223,7 @@ async function getTxStatus(account: Account, hash: string, pasta: string): Promi
         const status: any = (await account.getTransactionReceipt(hash)).status
         // log(status)
         if (status == undefined ||status == 'REJECTED' || status == 'REVERTED') {
-            return { success: false, statusCode: 0, transactionHash: 'tx rejected' }
+            return { success: false, statusCode: -1, transactionHash: 'tx rejected' }
         }
         return { success: true, statusCode: 1, transactionHash: pasta }
     } catch (e) {

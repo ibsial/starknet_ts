@@ -551,7 +551,7 @@ class StarknetWallet {
             }`
 
             log(pasta)
-            log(`[ ${this.starknetAddress} ]`)
+            // log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
             return await this.retryGetTxStatus(multicall.transaction_hash, pasta)
         } catch (e: any) {
@@ -596,7 +596,7 @@ class StarknetWallet {
             } | ${NumbersHelpers.bigIntToPrettyFloatStr(amountB, tokenB.decimals)} ${tokenB.name} to ${amm.name}`
 
             log(pasta)
-            log(`[ ${this.starknetAddress} ]`)
+            // log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
             return await this.retryGetTxStatus(multicall.transaction_hash, pasta)
         } catch (e: any) {
@@ -658,7 +658,7 @@ class StarknetWallet {
             }`
 
             log(pasta)
-            log(`[ ${this.starknetAddress} ]`)
+            // log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
             return this.retryGetTxStatus(multicall.transaction_hash, pasta)
         } catch (e: any) {
@@ -725,7 +725,7 @@ class StarknetWallet {
                 tokenIn.name
             } for ${NumbersHelpers.bigIntToPrettyFloatStr(BigInt(buyAmount), tokenOut.decimals)} ${tokenOut.name}`
             log(pasta)
-            log(`[ ${this.starknetAddress} ]`)
+            // log(`[ ${this.starknetAddress} ]`)
             log(c.green(starknet.explorer.tx + multicall.transaction_hash))
             return await this.retryGetTxStatus(multicall.transaction_hash, pasta)
         } catch (e) {
@@ -826,9 +826,7 @@ class StarknetWallet {
                     return { success: false, statusCode: 0, transactionHash: '❌ deposit ZkLend tx rejected' }
                 }
                 let balanceAfter: bigint = (await this.getBalance(starkTokens['ETH'])).result
-                log(
-                    `✅ withdrew all ETH from ZkLend`
-                )
+                log(`✅ withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(balanceAfter - balanceBefore, 18n)} ETH from ZkLend`)
                 return {
                     success: true,
                     statusCode: 1,
@@ -867,7 +865,11 @@ class StarknetWallet {
                     this.starknetAddress,
                     uint256.bnToUint256(depositAmount)
                 ])
-                const multicall: any = await this.starknetAccount.execute([approveCallData, depositCallData])
+                const multicall: any = await this.starknetAccount.execute(
+                    [approveCallData, depositCallData],
+                    undefined,
+                    { maxFee: RandomHelpers.getRandomBnFromTo(500000000000000n, 1000000000000000n) }
+                )
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
                 let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
                 if (!txPassed.success) {
@@ -893,7 +895,7 @@ class StarknetWallet {
                 return { success: false, statusCode: 0, transactionHash: '❌ deposit Nostra failed' }
             }
         }
-        return await retry(depositResult, {})
+        return await retry(depositResult, { maxRetries: 3 })
     }
     /**
      * retied but untested nostra feature
@@ -931,7 +933,9 @@ class StarknetWallet {
                     this.starknetAddress, //to
                     uint256.bnToUint256(balance) // amount
                 ])
-                const multicall: any = await this.starknetAccount.execute([withdrawCalldata])
+                const multicall: any = await this.starknetAccount.execute([withdrawCalldata], undefined, {
+                    maxFee: RandomHelpers.getRandomBnFromTo(500000000000000n, 1000000000000000n)
+                })
                 log(c.green(starknet.explorer.tx + multicall.transaction_hash))
                 let txPassed = await this.retryGetTxStatus(multicall.transaction_hash, '')
                 if (!txPassed.success) {
@@ -1238,7 +1242,11 @@ async function checkGas(): Promise<any> {
         let latestBlock = await gweiStarkProvider.getBlock('latest')
         let currentGwei = ethers.toBigInt(latestBlock.gas_price as string)
         if (currentGwei > NumbersHelpers.floatStringToBigInt(good_gwei.toString(), 9n)) {
-            log(c.yellow(`wait gwei. Want: ${good_gwei}, have: ${Number(currentGwei) / Number(10n ** 9n)} | ${new Date()}`))
+            log(
+                c.yellow(
+                    `wait gwei. Want: ${good_gwei}, have: ${Number(currentGwei) / Number(10n ** 9n)} | ${new Date()}`
+                )
+            )
             while (true) {
                 latestBlock = await gweiStarkProvider.getBlock('latest')
                 currentGwei = ethers.toBigInt(latestBlock.gas_price as string)

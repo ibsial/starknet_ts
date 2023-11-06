@@ -372,6 +372,7 @@ async function volumeCircle(walletTripples: any[]) {
                         await wallet.sendProgress()
                         await sleep(600, 'wait okx withdrawal')
                     }
+                    wallet.updateProgress(`withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(randAmount, 18n)} ETH to Ethereum`)
                     while (!(await wallet.waitEvmBalance())) {
                         wallet.updateProgress(
                             `acc: [${index + 1} / ${walletTripples.length}] ${
@@ -409,6 +410,7 @@ async function volumeCircle(walletTripples: any[]) {
                         await wallet.sendProgress()
                         await sleep(600, 'wait okx withdrawal')
                     }
+                    wallet.updateProgress(`withdrew ${NumbersHelpers.bigIntToPrettyFloatStr(randAmount, 18n)} ETH to Starknet`)
                     while (!(await wallet.waitBalance(starkTokens.ETH))) {
                         wallet.updateProgress(`acc: ${wallet.starknetAddress} \nfunds did not arrive to ETH`)
                         await wallet.sendProgress()
