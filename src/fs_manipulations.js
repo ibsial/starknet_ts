@@ -5,7 +5,7 @@ import * as stream from 'stream'
 import { once } from 'events'
 import { Mnemonic } from 'ethers'
 import { log, c, RandomHelpers, sleep } from './implementations/helpers'
-import { circle_config, okx_config } from '../config'
+import { circle_config, eth_bridge, okx_config } from '../config'
 
 // const __dirname = path.resolve(),
 
@@ -76,7 +76,7 @@ export const importEthPrivates = async () => {
     await once(rl, 'close')
     return accs
 }
-export const assembleAndRandomizeData = async () => {
+export const assembleAndRandomizeData = async (validateOkxAddresses = true) => {
     let [doubles, ethPrivates, okxAddresses] = await Promise.all([
         getDoubles(),
         importEthPrivates(),
@@ -84,7 +84,7 @@ export const assembleAndRandomizeData = async () => {
     ])
     // log(doubles, ethPrivates, okxAddresses)
     // check okx addresses validity
-    if(circle_config.need_deposit && okxAddresses.length == 0) {
+    if(validateOkxAddresses && circle_config.need_deposit && okxAddresses.length == 0) {
         log(c.red('did you forget to paste OKX addresses?'))
         throw Error("no OKX address")
     }
@@ -113,7 +113,7 @@ export const assembleAndRandomizeData = async () => {
         }
     }
     let finalArray = []
-    while (doubles.length > ethPrivates) {
+    while (doubles.length > ethPrivates.length && eth_bridge.need_bridge) {
         ethPrivates.push(undefined)
     }
     for (let i = 0; i < doubles.length; i++) {

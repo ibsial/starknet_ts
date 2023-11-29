@@ -73,7 +73,7 @@ async function generateManyFromOne(phrase: string, amount: number, start = 0, ca
 }
 
 async function restore(cairoVersion?: number, amount = 1) {
-    if (!cairoVersion) cairoVersion = 1
+    if (cairoVersion != 0 && cairoVersion != 1) cairoVersion = 1
     // let seed = 'any word that is in the dictionary and there are twelve words' // your seed
     let seeds = await getDoubles()
     appendResultsToFile(`starknet_wallets_${date}.csv`, `phrase,index,stark_address,stark_key,eth_address,eth_key`)
@@ -110,7 +110,7 @@ async function main() {
         case 'generate':
             return await generate(cairoVersion, seedAmount, walletPerSeedAmount)
         case 'restore':
-            return await restore(cairoVersion, walletPerSeedAmount)
+            return await restore(cairoVersion, seedAmount)
     }
 }
 main()

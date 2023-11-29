@@ -148,12 +148,12 @@ async function executeModules(wallet: progressTracker) {
     await sleep(RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[1]))
 }
 async function main() {
-    let wallets = await assembleAndRandomizeData()
+    let wallets = await assembleAndRandomizeData(false)
     if (!wallets) return
     for (let i = 0; i < wallets.length; i++) {
         let wallet = new progressTracker(wallets[i][0], wallets[i][1], wallets[i][2])
         wallet.updateProgress(
-            `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${wallets[i][2]} address: ${wallet.starknetAddress}`
+            `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${wallets[i][2] !== undefined ? wallets[i][2] : 0} address: ${wallet.starknetAddress}`
         )
         if(!(await wallet.init()).success) {
             wallet.updateProgress(`something went wrong with getting correct address for wallet: \n${wallets[i][0]}, ${wallets[i][2]}`)
