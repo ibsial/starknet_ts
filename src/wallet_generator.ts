@@ -100,7 +100,10 @@ console.log(date)
 async function main() {
     let args = process.argv.slice(2)
     let script = args[0]
-    let seedAmount = parseInt(args[1])
+    let seedAmount = 1
+    if (args[1] !== undefined) {
+        seedAmount = parseInt(args[2])
+    }
     let walletPerSeedAmount = 1
     if (args[2] !== undefined) {
         walletPerSeedAmount = parseInt(args[2])
