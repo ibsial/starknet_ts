@@ -1,5 +1,3 @@
-
-
 built
 node_modules
 *.csv
@@ -10,3 +8,4 @@ build
 !privates_example.txt
 !eth_privates_example.txt
 !seeds_example.txt
+!private_keys_example.txt

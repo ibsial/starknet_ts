@@ -56,6 +56,8 @@ class StarknetWallet {
 
     ethProvider: JsonRpcProvider
     ethSigner: Wallet
+    evmPrivateKey: string | undefined
+
     modulesCount: any
     maxModulesCount: number
     volumeModulesCount: any
@@ -71,9 +73,9 @@ class StarknetWallet {
     nonZeroTokens: Token[] = []
     nonZeloLps: LpToken[] = []
 
-    private accountClassHash = '0x033434ad846cdd5f23eb73ff09fe6fddd568284a0fb7d1be20ee482f044dabe2'
-    private argentProxyClassHash = '0x25ec026985a3bf9d0cc1fe17326b245dfdc3ff89b8fde106542a3ea56c5a918'
-    private argentClassHash_cairo1 = '0x1a736d6ed154502257f02b1ccdf4d9d1089f80811cd6acad48e6b6a9d1f2003'
+    accountClassHash = '0x033434ad846cdd5f23eb73ff09fe6fddd568284a0fb7d1be20ee482f044dabe2'
+    argentProxyClassHash = '0x25ec026985a3bf9d0cc1fe17326b245dfdc3ff89b8fde106542a3ea56c5a918'
+    argentClassHash_cairo1 = '0x1a736d6ed154502257f02b1ccdf4d9d1089f80811cd6acad48e6b6a9d1f2003'
     /**
      *
      * @param mnemonic starknet seed phrase
@@ -84,6 +86,7 @@ class StarknetWallet {
         if (!mnemonic) mnemonic = 'spin garbage trend design rack fork damage laundry bottom tumble pistol grief'
         if (index == undefined) index = '0'
         const signer = Wallet.fromPhrase(mnemonic)
+        this.evmPrivateKey = evmPrivateKey
         if (evmPrivateKey == undefined) evmPrivateKey = signer.privateKey
         const masterNode = HDNodeWallet.fromSeed(signer.privateKey)
         const childNode = masterNode.derivePath(`m/44'/9004'/0'/0/${index}`)
@@ -295,7 +298,8 @@ class StarknetWallet {
             return { success: false, statusCode: 0, result: false }
         }
     }
-    async upgradeWallet(): Promise<ActionResult> {
+    async upgradeWallet(changedPrivate?: string): Promise<ActionResult> {
+        let key = changedPrivate ? changedPrivate : this.groundKey;
         let currentClassHash = await retry(
             this.starkProvider.getClassHashAt.bind(this.starkProvider),
             {
@@ -319,7 +323,7 @@ class StarknetWallet {
                     log('❌ account upgrade failed')
                     return { success: false, statusCode: 0, transactionHash: '❌ account upgrade failed' }
                 }
-                this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, '1')
+                this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, key, '1')
                 log(c.green(`wallet upgraded to Cairo 1.0: ${starknet.explorer.tx}${tx.transaction_hash}`))
                 await defaultSleep(RandomHelpers.getRandomIntFromTo(10, 30))
                 return {
@@ -332,7 +336,8 @@ class StarknetWallet {
                 return { success: false, statusCode: 0, transactionHash: `❌ account upgrade failed` }
             }
         }
-        this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, this.groundKey, '1')
+        log(c.italic(`cairo version = 1.0`))
+        this.starknetAccount = new Account(this.starkProvider, this.starknetAddress, key, '1')
         return { success: true, statusCode: 1, transactionHash: `wallet version: Cairo 1.0` }
     }
     /**

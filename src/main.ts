@@ -1,5 +1,5 @@
 import { amms, starkTokens } from './data/tokens'
-import { progressTracker } from './implementations/ProgressTracker'
+import { progressTracker, progressTrackerFromKey } from './implementations/ProgressTracker'
 import {
     sleep,
     retry,
@@ -13,7 +13,7 @@ import {
     gweiEthProvider,
     defaultSleep
 } from './implementations/helpers'
-import { assembleAndRandomizeData } from './fs_manipulations'
+import { assembleAndRandomizeData, assembleAndRandomizeDataFromKeys } from './fs_manipulations'
 import { action_sleep_interval, circle_config, eth_bridge, okx_config, wallet_sleep_interval } from '../config'
 import { Contract } from 'starknet'
 import { ActionResult, ReadResponse, AccData, Token } from './interfaces/Types'
@@ -331,23 +331,46 @@ async function dex_circle(wallet: progressTracker, index: number, fromTokenName:
     }
     return 1
 }
-async function volumeCircle(walletTripples: any[]) {
+async function volumeCircle(walletTripples: any[], accountCreationType = 'seed') {
     for (let [index, walletTripple] of walletTripples.entries()) {
         let exch = new Okex()
-        let wallet = new progressTracker(walletTripple[0], walletTripple[1], walletTripple[2])
-        // withdraw from OKX
-        if (!(await wallet.init()).success) {
-            wallet.updateProgress(
-                `something went wrong with getting correct address for wallet: \n${walletTripple[0]}, ${walletTripple[2]}`
-            )
-            wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
-            await wallet.sendProgress()
-            log(
-                c.red(`something went wrong with getting correct address for wallet:`),
-                `\n${walletTripple[0]}, ${walletTripple[2]}`
-            )
-            log(c.red(`this is undefined behavior, please restart the script and contact author`))
-            throw 'Something went wrong with getting acc address'
+        let wallet
+        if (accountCreationType == 'seed') {
+            wallet = new progressTracker(walletTripple[0], walletTripple[1], walletTripple[2])
+            // withdraw from OKX
+            if (!(await wallet.init()).success) {
+                wallet.updateProgress(
+                    `something went wrong with getting correct address for wallet: \n${walletTripple[0]}, ${walletTripple[2]}`
+                )
+                wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
+                await wallet.sendProgress()
+                log(
+                    c.red(`something went wrong with getting correct address for wallet:`),
+                    `\n${walletTripple[0]}, ${walletTripple[2]}`
+                )
+                log(c.red(`this is undefined behavior, please restart the script and contact author`))
+                throw 'Something went wrong with getting acc address'
+            }
+            // deploy
+            let deployRes = await wallet.checkAndDeployWallet()
+            if (!deployRes.success) {
+                log(c.red('failed to deploy account'))
+                wallet.updateProgress(deployRes.transactionHash + '\n*Moving to next wallet or restart script*')
+                await wallet.sendProgress()
+                await sleep(timeout * 3, 'fail on deploy')
+                continue
+            }
+            wallet.updateProgress(deployRes.transactionHash)
+        } else if (accountCreationType == 'keys') {
+            wallet = new progressTrackerFromKey(walletTripple[0], walletTripple[1], walletTripple[2])
+            if (!(await wallet.setupAccount()).success) {
+                wallet.updateProgress(`something went wrong with changing PK for wallet: \n${walletTripple[0]}`)
+                await wallet.sendProgress()
+                log(c.red(`something went wrong with changing PK for wallet: \n${walletTripple[0]}`))
+                continue
+            }
+        } else {
+            throw 'Invalid scenario name. Only `seed` or `keys` allowed'
         }
         wallet.updateProgress(`acc: [${index + 1} / ${walletTripples.length}] ${wallet.starknetAddress}`)
         await checkGas()
@@ -434,6 +457,10 @@ async function volumeCircle(walletTripples: any[]) {
         }
         await checkGas()
         if (eth_bridge.need_bridge) {
+            if (!wallet.evmPrivateKey) {
+                log(c.red("no evm key provided!"))
+                continue
+            }
             let bridgeRes = await retry(wallet.bridgeMainnet.bind(wallet), {})
             wallet.updateProgress(bridgeRes.transactionHash)
             while (!(await wallet.waitBalance(starkTokens.ETH))) {
@@ -454,16 +481,6 @@ async function volumeCircle(walletTripples: any[]) {
             }
         }
         await checkGas()
-        // deploy
-        let deployRes = await wallet.checkAndDeployWallet()
-        if (!deployRes.success) {
-            log(c.red('failed to deploy account'))
-            wallet.updateProgress(deployRes.transactionHash + '\n*Moving to next wallet or restart script*')
-            await wallet.sendProgress()
-            await sleep(timeout * 3, 'fail on deploy')
-            continue
-        }
-        wallet.updateProgress(deployRes.transactionHash)
 
         if (RandomHelpers.getRandomInt(6) == 2) {
             await executeRandomCheapModule(wallet)
@@ -548,8 +565,14 @@ async function volumeCircle(walletTripples: any[]) {
 }
 
 async function main() {
-    let wallets = await assembleAndRandomizeData()
+    let args = process.argv.slice(2)
+    let wallets
+    if (args[0] == 'keys') {
+        wallets = await assembleAndRandomizeDataFromKeys()
+    } else {
+        wallets = await assembleAndRandomizeData()
+    }
     if (!wallets) return
-    await volumeCircle(wallets)
+    await volumeCircle(wallets, args[0] == 'keys' ? 'keys' : 'seeds')
 }
 main()

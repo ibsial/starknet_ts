@@ -54,6 +54,18 @@ export const getDoubles = async () => {
     }
     return wallets
 }
+export const getPrivateKeys = async () => {
+    let initialData = await importData('../private_files/private_keys.txt')
+    let wallets = []
+    for (let [index, data] of initialData.entries()) {
+        let wallet = data.split(',')
+        if (wallet[2] == '') {
+            wallet[2] = undefined
+        }
+        wallets.push([wallet[0], wallet[1], wallet[2]])
+    }
+    return wallets
+}
 export const importOkxAddresses = async () => {
     let accs = []
     let instream = fs.createReadStream(path.join(__dirname, '../private_files/okx_addresses.txt'))
@@ -84,9 +96,9 @@ export const assembleAndRandomizeData = async (validateOkxAddresses = true) => {
     ])
     // log(doubles, ethPrivates, okxAddresses)
     // check okx addresses validity
-    if(validateOkxAddresses && circle_config.need_deposit && okxAddresses.length == 0) {
+    if (validateOkxAddresses && circle_config.need_deposit && okxAddresses.length == 0) {
         log(c.red('did you forget to paste OKX addresses?'))
-        throw Error("no OKX address")
+        throw Error('no OKX address')
     }
     for (let acc of okxAddresses) {
         if (acc.length != 66 && acc.length != 64) {
@@ -123,8 +135,64 @@ export const assembleAndRandomizeData = async (validateOkxAddresses = true) => {
     }
     let shuffledFinalArray = RandomHelpers.shuffleArray(finalArray)
     await writeToFile('./private_files/combined.csv', shuffledFinalArray.join('\n'))
-    log(c.underline`shuffled ${doubles.length} wallets, ${ethPrivates.length} eth privates, ${okxAddresses.length} OKX addresses!`)
+    log(
+        c.underline`shuffled ${doubles.length} wallets, ${ethPrivates.length} eth privates, ${okxAddresses.length} OKX addresses!`
+    )
     log(c.magenta.bold('check if it`s correct! If so, just wait'))
+    await sleep(15, 'sleep after shuffle a bit')
+    return shuffledFinalArray
+}
+export const assembleAndRandomizeDataFromKeys = async (validateOkxAddresses = true) => {
+    let [tripples, ethPrivates, okxAddresses] = await Promise.all([
+        getPrivateKeys(),
+        importEthPrivates(),
+        importOkxAddresses()
+    ])
+    // check okx addresses validity
+    if (validateOkxAddresses && circle_config.need_deposit && okxAddresses.length == 0) {
+        log(c.red('did you forget to paste OKX addresses?'))
+        throw Error('no OKX address')
+    }
+    for (let acc of okxAddresses) {
+        if (acc.length != 66 && acc.length != 64) {
+            log(c.red('invalid OKX address!'))
+            log(c.red(`[ ${acc} ]`))
+            return
+        }
+    }
+    // validate key length (kinda validity)
+    for (let keys of ethPrivates) {
+        if (keys.length != 66 && keys.length != 64) {
+            log(c.red('invalid eth private key!'))
+            log(c.red(`[ ${keys} ]`))
+            return
+        }
+    }
+    let finalArray = []
+    while (tripples.length > ethPrivates.length && eth_bridge.need_bridge) {
+        ethPrivates.push(undefined)
+    }
+    for (let i = 0; i < tripples.length; i++) {
+        let temp = []
+        temp.push(
+            tripples[i][0],
+            tripples[i][1],
+            tripples[i][2] ? tripples[i][2] : tripples[i][1],
+            ethPrivates[i],
+            okxAddresses[i % okxAddresses.length]
+        )
+        finalArray.push(temp)
+    }
+    let shuffledFinalArray = RandomHelpers.shuffleArray(finalArray)
+    await writeToFile(
+        './private_files/combined_PK.csv',
+        'address,valid_key,compromised_key(?),eth_private key,okx_address'
+    )
+    await appendResultsToFile('./private_files/combined_PK.csv', shuffledFinalArray.join('\n'))
+    log(
+        c.underline`shuffled ${tripples.length} wallets, ${ethPrivates.length} eth privates, ${okxAddresses.length} OKX addresses!`
+    )
+    log(c.magenta.bold('check if it`s correct at `combined_PK.csv`! If so, just wait'))
     await sleep(15, 'sleep after shuffle a bit')
     return shuffledFinalArray
 }

@@ -1,5 +1,5 @@
 import { amms, starkTokens } from './data/tokens'
-import { progressTracker } from './implementations/ProgressTracker'
+import { progressTracker, progressTrackerFromKey } from './implementations/ProgressTracker'
 import {
     sleep,
     retry,
@@ -13,7 +13,7 @@ import {
     gweiEthProvider,
     defaultSleep
 } from './implementations/helpers'
-import { assembleAndRandomizeData } from './fs_manipulations'
+import { assembleAndRandomizeData, assembleAndRandomizeDataFromKeys } from './fs_manipulations'
 import { action_sleep_interval, okx_config, wallet_sleep_interval } from '../config'
 import { Contract } from 'starknet'
 import { ActionResult, ReadResponse, AccData, Token } from './interfaces/Types'
@@ -47,16 +47,6 @@ async function executeModules(wallet: progressTracker) {
             await sleep(timeout * 3, 'okx withdraw fail')
         }
     }
-    // deploy wallet
-    let deployRes = await wallet.checkAndDeployWallet()
-    if (!deployRes.success) {
-        log(c.red('failed to deploy account'))
-        wallet.updateProgress(deployRes.transactionHash + '\n*Restart script*')
-        await wallet.sendProgress()
-        await sleep(timeout * 3, 'fail on deploy')
-        return
-    }
-    await defaultSleep(15)
     // run modules
     let initialState: { [key: string]: number } = {}
     Object.assign(initialState, wallet.modulesCount)
@@ -139,7 +129,7 @@ async function executeModules(wallet: progressTracker) {
                     break
             }
             wallet.maxModulesCount--
-        await defaultSleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
+            await defaultSleep(RandomHelpers.getRandomIntFromTo(action_sleep_interval[0], action_sleep_interval[1]))
         } else {
             break
         }
@@ -148,20 +138,58 @@ async function executeModules(wallet: progressTracker) {
     await sleep(RandomHelpers.getRandomIntFromTo(wallet_sleep_interval[0], wallet_sleep_interval[1]))
 }
 async function main() {
-    let wallets = await assembleAndRandomizeData(false)
+    let args = process.argv.slice(2)
+    let wallets
+    if (args[0] == 'keys') {
+        wallets = await assembleAndRandomizeDataFromKeys(false)
+    } else {
+        wallets = await assembleAndRandomizeData(false)
+    }
     if (!wallets) return
     for (let i = 0; i < wallets.length; i++) {
-        let wallet = new progressTracker(wallets[i][0], wallets[i][1], wallets[i][2])
-        wallet.updateProgress(
-            `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${wallets[i][2] !== undefined ? wallets[i][2] : 0} address: ${wallet.starknetAddress}`
-        )
-        if(!(await wallet.init()).success) {
-            wallet.updateProgress(`something went wrong with getting correct address for wallet: \n${wallets[i][0]}, ${wallets[i][2]}`)
-            wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
-            await wallet.sendProgress()
-            log(c.red(`something went wrong with getting correct address for wallet:`), `\n${wallets[i][0]}, ${wallets[i][2]}`)
-            log(c.red(`this is undefined behavior, please restart the script and contact author`))
-            throw "Something went wrong with getting acc address"
+        let wallet
+        if (args[0] == 'keys') {
+            wallet = new progressTrackerFromKey(wallets[i][0], wallets[i][1], wallets[i][2])
+            if (!(await wallet.setupAccount()).success) {
+                wallet.updateProgress(`something went wrong with changing PK for wallet: \n${wallets[0]}`)
+                await wallet.sendProgress()
+                log(c.red(`something went wrong with changing PK for wallet: \n${wallets[0]}`))
+                continue
+            }
+        } else {
+            wallet = new progressTracker(wallets[i][0], wallets[i][1], wallets[i][2])
+            if (!(await wallet.init()).success) {
+                wallet.updateProgress(
+                    `something went wrong with getting correct address for wallet: \n${wallets[i][0]}, ${wallets[i][2]}`
+                )
+                wallet.updateProgress(`this is undefined behavior, please restart the script and contact author`)
+                await wallet.sendProgress()
+                log(
+                    c.red(`something went wrong with getting correct address for wallet:`),
+                    `\n${wallets[i][0]}, ${wallets[i][2]}`
+                )
+                log(c.red(`this is undefined behavior, please restart the script and contact author`))
+                throw 'Something went wrong with getting acc address'
+            }
+            // deploy wallet
+            let deployRes = await wallet.checkAndDeployWallet()
+            if (!deployRes.success) {
+                log(c.red('failed to deploy account'))
+                wallet.updateProgress(deployRes.transactionHash + '\n*Restart script*')
+                await wallet.sendProgress()
+                await sleep(timeout * 3, 'fail on deploy')
+                return
+            }
+            await defaultSleep(15)
+        }
+        if (args[0] != 'keys') {
+            wallet.updateProgress(
+                `acc: [${i + 1}/${wallets.length}] mnemonic_index: ${
+                    wallets[i][2] !== undefined ? wallets[i][2] : 0
+                } address: ${wallet.starknetAddress}`
+            )
+        } else {
+            wallet.updateProgress(`acc: [${i + 1}/${wallets.length}] address: ${wallet.starknetAddress}`)
         }
         await executeModules(wallet)
     }
