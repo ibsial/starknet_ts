@@ -7,7 +7,8 @@ import {
     wallet_sleep_interval,
     modulesCount,
     circle_config,
-    maxCount
+    maxCount,
+    NODE_URL
 } from '../../config'
 import {
     RandomHelpers,
@@ -30,14 +31,14 @@ import {
     CallData,
     ec,
     hash,
-    SequencerProvider,
     constants,
     uint256,
     Contract,
     Call,
     getChecksumAddress,
     EstimateFee,
-    stark
+    stark,
+    RpcProvider
 } from 'starknet'
 import axios from 'axios'
 import { starknetId } from '../abi/starknetId'
@@ -63,8 +64,8 @@ class StarknetWallet {
     volumeModulesCount: any
     volumeMaxModulesCount: number
 
-    starkProvider = new SequencerProvider({
-        baseUrl: constants.BaseUrl.SN_MAIN
+    starkProvider = new RpcProvider({
+        nodeUrl: NODE_URL
     })
     starknetKey: string
     starknetAddress: string

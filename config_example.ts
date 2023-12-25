@@ -11,6 +11,8 @@ export const action_sleep_interval = [3 * 60, 5 * 60] // в секундах
 export const wallet_sleep_interval = [30 * 60, 60 * 60] // в секундах
 export const good_gwei = 25 // ограничитель гвея
 
+export const NODE_URL = "https://cloud.argent-api.com/v1/starknet/mainnet/rpc/v0.5"
+
 export const okx_config = {
     need_withdraw: true,
     network: "starknet", // "starknet" or "eth"

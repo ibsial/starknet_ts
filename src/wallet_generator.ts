@@ -102,7 +102,7 @@ async function main() {
     let script = args[0]
     let seedAmount = 1
     if (args[1] !== undefined) {
-        seedAmount = parseInt(args[2])
+        seedAmount = parseInt(args[1])
     }
     let walletPerSeedAmount = 1
     if (args[2] !== undefined) {

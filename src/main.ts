@@ -573,6 +573,6 @@ async function main() {
         wallets = await assembleAndRandomizeData()
     }
     if (!wallets) return
-    await volumeCircle(wallets, args[0] == 'keys' ? 'keys' : 'seeds')
+    await volumeCircle(wallets, args[0] == 'keys' ? 'keys' : 'seed')
 }
 main()
